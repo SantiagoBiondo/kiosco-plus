@@ -31,7 +31,7 @@
     <AssemblyTitle>Kiosco+</AssemblyTitle>
     <Description>Kiosco+: ventas, inventario y caja para kioscos</Description>
     <ApplicationIcon>Recursos\KioscoPlus.ico</ApplicationIcon>
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
