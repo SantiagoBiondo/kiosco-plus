@@ -23,15 +23,16 @@ public class VentaServicio(IVentaRepositorio ventas, CajaServicio caja, TimeProv
     /// Registra la venta en el turno de caja abierto, descuenta el stock y vacía el carrito.
     /// Si la caja está cerrada, no se puede cobrar.
     /// </summary>
-    public Venta Cobrar(Carrito carrito, Cobro cobro)
+    /// <param name="reglas">Recargo y mínimo por transferencia (null = ninguno).</param>
+    public Venta Cobrar(Carrito carrito, Cobro cobro, ReglasDeCobro? reglas = null)
     {
         var turno = caja.TurnoAbierto
                     ?? throw new ReglaDeNegocioException("La caja está cerrada. Abrila para poder cobrar.");
-        var venta = Venta.DesdeCarrito(carrito, cobro, turno, reloj.GetLocalNow().DateTime);
+        var venta = Venta.DesdeCarrito(carrito, cobro, turno, reloj.GetLocalNow().DateTime, reglas);
         ventas.Registrar(venta);
 
         // El repositorio ya descontó el stock en la base; reflejamos lo mismo en memoria.
-        foreach (var item in carrito.Items)
+        foreach (var item in carrito.Items.Where(i => i.Producto.ControlaStock))
             item.Producto.DescontarStock(item.Cantidad);
 
         carrito.Vaciar();

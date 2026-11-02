@@ -1,12 +1,14 @@
 using KioscoRockAndRoll.Datos;
 using KioscoRockAndRoll.Dominio.Entidades;
+using KioscoRockAndRoll.Dominio.Servicios;
 using Proyecto_Kiosco_Rock_Roll.Interfaz.Impresion;
 
 namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
 {
     /// <summary>
     /// Configuración: la impresora de tickets (cuál usar, de qué ancho es el papel y si se imprime
-    /// siempre al cobrar) y la apariencia (tema claro u oscuro). Los cambios se guardan apenas se hacen.
+    /// siempre al cobrar), la apariencia (tema claro u oscuro) y las reglas para cobrar por transferencia
+    /// (recargo por paquete y monto mínimo). Los cambios se guardan apenas se hacen.
     /// </summary>
     public class VistaConfiguracion : Vista
     {
@@ -14,7 +16,14 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
 
         private readonly AjustesDeTicket _ajustes;
         private readonly AjustesDeApariencia _apariencia;
+        private readonly AjustesDeCobro _cobro;
+        private readonly CatalogoServicio<Categoria> _categorias;
         private bool _cargando;
+
+        private readonly ComboBox cmbRubroRecargo = Estilos.Opciones<Opcion<long?>>([], o => o.Texto, 260);
+        private readonly NumericUpDown numRecargo = Estilos.CampoNumero(2, 1_000_000);
+        private readonly NumericUpDown numMinimo = Estilos.CampoNumero(2, 1_000_000);
+        private readonly Label lblCobro = new() { AutoSize = true, MaximumSize = new Size(460, 0), Margin = new Padding(3, 12, 3, 3) };
 
         private readonly ComboBox cmbTema = Estilos.Opciones(new[] { false, true }, oscuro => oscuro ? "Oscuro" : "Claro", 200);
         private readonly Label lblTema = new() { AutoSize = true, MaximumSize = new Size(620, 0), Margin = new Padding(3, 8, 3, 3) };
@@ -44,10 +53,13 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             TabStop = false
         };
 
-        public VistaConfiguracion(AjustesDeTicket ajustes, AjustesDeApariencia apariencia)
+        public VistaConfiguracion(AjustesDeTicket ajustes, AjustesDeApariencia apariencia,
+            AjustesDeCobro cobro, CatalogoServicio<Categoria> categorias)
         {
             _ajustes = ajustes;
             _apariencia = apariencia;
+            _cobro = cobro;
+            _categorias = categorias;
 
             var opciones = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(16) };
             opciones.Controls.Add(Estilos.Etiqueta("Impresora de tickets", Estilos.Titulo));
@@ -89,9 +101,35 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             vistaPrevia.Controls.Add(Estilos.Etiqueta("Así sale el ticket", Estilos.Titulo));
             vistaPrevia.Controls.Add(txtVistaPrevia);
 
+            // Cobro por transferencia.
+            var cobroPanel = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(16) };
+            cobroPanel.Controls.Add(Estilos.Etiqueta("Cobro por transferencia", Estilos.Titulo));
+            cobroPanel.Controls.Add(new Label
+            {
+                AutoSize = true,
+                MaximumSize = new Size(460, 0),
+                Text = "Si se paga algo por transferencia, cada paquete del rubro elegido se cobra más caro " +
+                       "(los sueltos no). Y no se puede transferir menos que el mínimo."
+            });
+            cobroPanel.Controls.Add(Estilos.Etiqueta("Rubro con recargo"));
+            cobroPanel.Controls.Add(cmbRubroRecargo);
+            cobroPanel.Controls.Add(Estilos.Etiqueta("Recargo por paquete ($)"));
+            cobroPanel.Controls.Add(numRecargo);
+            cobroPanel.Controls.Add(Estilos.Etiqueta("Mínimo para transferir ($)"));
+            cobroPanel.Controls.Add(numMinimo);
+            cobroPanel.Controls.Add(lblCobro);
+
             // El orden importa con Dock = Left: lo último que se agrega queda más a la izquierda.
+            Controls.Add(cobroPanel);
             Controls.Add(vistaPrevia);
             Controls.Add(opciones);
+
+            cmbRubroRecargo.SelectedIndexChanged += (_, _) => GuardarCobro();
+            foreach (var campo in new[] { numRecargo, numMinimo })
+            {
+                campo.ValueChanged += (_, _) => GuardarCobro();
+                campo.Leave += (_, _) => GuardarCobro();
+            }
 
             cmbImpresora.SelectedIndexChanged += (_, _) => Guardar();
             cmbPapel.SelectedIndexChanged += (_, _) => Guardar();
@@ -104,6 +142,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         {
             CargarImpresoras();
             CargarTema();
+            CargarCobro();
             cmbImpresora.Focus();
         }
 
@@ -132,6 +171,44 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
                 : "Los colores del programa. Si te cansa la vista o la pantalla es muy brillante, probá el oscuro.";
             lblTema.ForeColor = hayQueReiniciar ? Estilos.Advertencia : SystemColors.GrayText;
             btnReiniciar.Visible = hayQueReiniciar;
+        }
+
+        /// <summary>Muestra las reglas de cobro guardadas (las categorías se recargan por si se agregó alguna).</summary>
+        private void CargarCobro()
+        {
+            var reglas = _cobro.Leer();
+            _cargando = true;
+            Estilos.CambiarOpciones(cmbRubroRecargo, OpcionesDeCatalogo.ParaAsignar(_categorias.Listar(), "(ninguno: sin recargo)"));
+            Estilos.Elegir<Opcion<long?>>(cmbRubroRecargo, o => o.Valor == reglas.CategoriaConRecargo);
+            numRecargo.Value = Math.Min(reglas.RecargoPorPaquete, numRecargo.Maximum);
+            numMinimo.Value = Math.Min(reglas.MinimoTransferencia, numMinimo.Maximum);
+            _cargando = false;
+            DescribirCobro(reglas, guardado: false);
+        }
+
+        private void GuardarCobro()
+        {
+            if (_cargando)
+                return;
+            var reglas = new ReglasDeCobro(
+                (cmbRubroRecargo.SelectedItem as Opcion<long?>)?.Valor, numRecargo.ValorTipeado(), numMinimo.ValorTipeado());
+            if (reglas == _cobro.Leer())
+                return;
+            _cobro.Guardar(reglas);
+            DescribirCobro(reglas, guardado: true);
+        }
+
+        private void DescribirCobro(ReglasDeCobro reglas, bool guardado)
+        {
+            var rubro = (cmbRubroRecargo.SelectedItem as Opcion<long?>)?.Texto;
+            var recargo = reglas.CategoriaConRecargo != null && reglas.RecargoPorPaquete > 0
+                ? $"Por transferencia, cada paquete de {rubro} sale {reglas.RecargoPorPaquete:C0} más."
+                : "Sin recargo por transferencia.";
+            var minimo = reglas.MinimoTransferencia > 0
+                ? $"Se puede transferir desde {reglas.MinimoTransferencia:C0}."
+                : "Se puede transferir cualquier monto.";
+            lblCobro.Text = (guardado ? "Guardado. " : "") + $"{recargo} {minimo}";
+            lblCobro.ForeColor = guardado ? Estilos.Exito : SystemColors.GrayText;
         }
 
         /// <summary>Lista las impresoras de Windows y muestra la configuración guardada.</summary>

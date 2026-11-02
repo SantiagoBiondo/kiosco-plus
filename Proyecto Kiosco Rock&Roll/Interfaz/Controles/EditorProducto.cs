@@ -37,6 +37,23 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
         private readonly NumericUpDown numUnidades = Estilos.CampoNumero(0, 1000);
         private readonly Label lblPaquete = new() { AutoSize = true, MaximumSize = new Size(400, 0), Margin = new Padding(3, 0, 3, 6) };
         private readonly List<Control> filasDePaquete = [];
+
+        // Productos que se cobran según lo que se lleva (ej.: caramelos por peso).
+        private readonly CheckBox chkPrecioAlVender = new()
+        {
+            Text = "El precio se pone al vender (ej.: caramelos por peso)",
+            AutoSize = true,
+            Margin = new Padding(3, 8, 3, 3)
+        };
+        private readonly Label lblAyudaPrecioAlVender = new()
+        {
+            AutoSize = true,
+            MaximumSize = new Size(440, 0),
+            ForeColor = SystemColors.GrayText,
+            Margin = new Padding(3, 0, 3, 6),
+            Text = "Al venderlo se pregunta cuánto cobrar. El costo y la venta de arriba son de referencia " +
+                   "(ej.: 100 g: costo $1.200, venta $1.800) y sirven para calcular la ganancia. No se controla el stock."
+        };
         private readonly Label lblError = new() { AutoSize = true, ForeColor = Estilos.Error, MaximumSize = new Size(400, 0) };
 
         /// <summary>Se guardó el producto (nuevo o editado).</summary>
@@ -68,6 +85,11 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             AgregarFila(tabla, "Precio de costo", numCosto);
             AgregarFila(tabla, "Precio de venta", numVenta);
             AgregarFila(tabla, "", lblMargen);
+            tabla.Controls.Add(chkPrecioAlVender);
+            tabla.SetColumnSpan(chkPrecioAlVender, 2);
+            tabla.Controls.Add(lblAyudaPrecioAlVender);
+            tabla.SetColumnSpan(lblAyudaPrecioAlVender, 2);
+            chkPrecioAlVender.CheckedChanged += (_, _) => lblAyudaPrecioAlVender.Visible = chkPrecioAlVender.Checked;
             AgregarFila(tabla, "Stock actual", numStock);
             AgregarFila(tabla, "Stock mínimo", numMinimo);
             AgregarFila(tabla, "Categoría", cmbCategoria);
@@ -105,6 +127,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             Cargar("", "", 0, 0, stockInicial, 0, null, null);
             txtCodigo.Text = codigoBarras;
             CargarPaquete(null, 0);
+            CargarPrecioAlVender(false);
         }
 
         public void Editar(Producto producto)
@@ -115,6 +138,13 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
                 Math.Max(0, producto.Stock), producto.StockMinimo, producto.CategoriaId, producto.ProveedorId);
             var paquete = producto.PaqueteId is { } paqueteId ? _inventario.ObtenerPorId(paqueteId) : null;
             CargarPaquete(paquete?.CodigoBarras, producto.UnidadesPorPaquete);
+            CargarPrecioAlVender(producto.PrecioAlVender);
+        }
+
+        private void CargarPrecioAlVender(bool alVender)
+        {
+            chkPrecioAlVender.Checked = alVender;
+            lblAyudaPrecioAlVender.Visible = alVender;
         }
 
         private void CargarPaquete(string? codigoPaquete, int unidades)
@@ -223,7 +253,8 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             var datos = new DatosProducto(
                 txtCodigo.Text, txtNombre.Text, numCosto.Value, numVenta.Value, (int)numStock.Value, (int)numMinimo.Value,
                 ((Opcion<long?>)cmbCategoria.SelectedItem!).Valor, ((Opcion<long?>)cmbProveedor.SelectedItem!).Valor,
-                chkSuelto.Checked ? txtPaquete.Text : null, (int)numUnidades.Value);
+                chkSuelto.Checked ? txtPaquete.Text : null, (int)numUnidades.Value,
+                PrecioAlVender: chkPrecioAlVender.Checked);
 
             try
             {

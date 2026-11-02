@@ -6,7 +6,8 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
     /// <summary>
     /// Elegir cómo se paga y, si hay efectivo, ver el vuelto. Se puede pagar con un medio o con
     /// "Varios medios": se cargan los montos con tarjeta o transferencia y el resto va en efectivo.
-    /// Enter confirma, Esc cancela.
+    /// Si se paga algo por transferencia, el total incluye el recargo de los paquetes que lo llevan
+    /// (ver <see cref="ReglasDeCobro"/>). Enter confirma, Esc cancela.
     /// </summary>
     public class PanelCobro : UserControl
     {
@@ -19,9 +20,11 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
 
         private static readonly MedioDePago[] OtrosMedios = [MedioDePago.Debito, MedioDePago.Credito, MedioDePago.TransferenciaQr];
 
-        private decimal _total;
+        private Carrito _carrito = new();
+        private ReglasDeCobro _reglas = ReglasDeCobro.Ninguna;
 
         private readonly Label lblTotal = Estilos.Etiqueta("", Estilos.Total);
+        private readonly Label lblRecargo = new() { AutoSize = true, MaximumSize = new Size(400, 0), Margin = new Padding(3, 0, 3, 8) };
         private readonly ComboBox cmbMedio = Estilos.Opciones(OpcionesDeMedio, o => o.Texto, 250);
         private readonly TableLayoutPanel zonaVarios = new() { ColumnCount = 2, AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
         private readonly Dictionary<MedioDePago, NumericUpDown> montosOtrosMedios = [];
@@ -61,6 +64,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             var tabla = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, Dock = DockStyle.Top };
             tabla.Controls.Add(Estilos.Etiqueta("Cobrar", Estilos.Titulo));
             tabla.Controls.Add(lblTotal);
+            tabla.Controls.Add(lblRecargo);
             tabla.Controls.Add(Estilos.Etiqueta("Medio de pago (↑ ↓ para cambiar)"));
             tabla.Controls.Add(cmbMedio);
             tabla.Controls.Add(zonaVarios);
@@ -85,13 +89,14 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             numPagaCon.KeyUp += (_, _) => Actualizar();
         }
 
+        /// <param name="reglas">El recargo y el mínimo para pagar por transferencia.</param>
         /// <param name="ticket">La configuración de la impresora: si no hay, la casilla "Imprimir ticket" no se muestra.</param>
-        public void Iniciar(decimal total, ConfiguracionDeTicket ticket)
+        public void Iniciar(Carrito carrito, ReglasDeCobro reglas, ConfiguracionDeTicket ticket)
         {
-            _total = total;
+            _carrito = carrito;
+            _reglas = reglas;
             chkTicket.Visible = ticket.HayImpresora;
             chkTicket.Checked = ticket.ImprimirAlCobrar;
-            lblTotal.Text = total.ToString("C2");
             Estilos.Elegir<Opcion<MedioDePago?>>(cmbMedio, o => o.Valor == MedioDePago.Efectivo);
             Vaciar(numPagaCon);
             lblError.Text = "";
@@ -119,6 +124,14 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
 
         private bool EsVarios => cmbMedio.SelectedItem is Opcion<MedioDePago?> { Valor: null };
 
+        /// <summary>Si se paga algo por transferencia (todo, o una parte con "Varios medios").</summary>
+        private bool ConTransferencia => EsVarios
+            ? montosOtrosMedios[MedioDePago.TransferenciaQr].ValorTipeado() > 0
+            : MedioElegido == MedioDePago.TransferenciaQr;
+
+        /// <summary>El total a cobrar: con el recargo si se paga algo por transferencia.</summary>
+        private decimal Total => _reglas.TotalACobrar(_carrito, ConTransferencia);
+
         private void MedioCambiado()
         {
             zonaVarios.Visible = EsVarios;
@@ -136,19 +149,24 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
         /// <summary>Arma el cobro con lo cargado en pantalla (puede lanzar ReglaDeNegocioException).</summary>
         private Cobro ArmarCobro()
         {
-            if (!EsVarios)
-                return Cobro.Crear(_total, MedioElegido!.Value, numPagaCon.ValorTipeado());
-
-            var otros = montosOtrosMedios.Select(par => new Pago(par.Key, par.Value.ValorTipeado()));
-            return Cobro.Combinado(_total, otros, numPagaCon.ValorTipeado());
+            var cobro = EsVarios
+                ? Cobro.Combinado(Total, montosOtrosMedios.Select(par => new Pago(par.Key, par.Value.ValorTipeado())),
+                    numPagaCon.ValorTipeado())
+                : Cobro.Crear(Total, MedioElegido!.Value, numPagaCon.ValorTipeado());
+            _reglas.ValidarTransferencia(cobro);
+            return cobro;
         }
 
         /// <summary>Recalcula el resto en efectivo y el vuelto mientras se tipea.</summary>
         private void Actualizar()
         {
+            var total = Total;
+            lblTotal.Text = total.ToString("C2");
+            MostrarRecargo();
+
             var restoEnEfectivo = EsVarios
-                ? _total - montosOtrosMedios.Values.Sum(c => c.ValorTipeado())
-                : MedioElegido == MedioDePago.Efectivo ? _total : 0;
+                ? total - montosOtrosMedios.Values.Sum(c => c.ValorTipeado())
+                : MedioElegido == MedioDePago.Efectivo ? total : 0;
 
             lblResto.Text = restoEnEfectivo >= 0 ? restoEnEfectivo.ToString("C2") : $"Te pasaste {-restoEnEfectivo:C2}";
             lblResto.ForeColor = restoEnEfectivo >= 0 ? SystemColors.ControlText : Estilos.Error;
@@ -166,6 +184,27 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             var vuelto = pagaCon == 0 ? 0 : pagaCon - restoEnEfectivo;
             lblVuelto.Text = vuelto >= 0 ? vuelto.ToString("C2") : $"Faltan {-vuelto:C2}";
             lblVuelto.ForeColor = vuelto >= 0 ? Estilos.Exito : Estilos.Error;
+        }
+
+        /// <summary>Explica el recargo por transferencia: si ya está incluido, o cuánto sería.</summary>
+        private void MostrarRecargo()
+        {
+            var paquetes = _reglas.PaquetesConRecargo(_carrito);
+            var recargo = _reglas.RecargoPorTransferencia(_carrito);
+            var detalle = $"{(paquetes == 1 ? "1 paquete" : $"{paquetes} paquetes")} × {_reglas.RecargoPorPaquete:C0} = {recargo:C0}";
+            var minimo = _reglas.MinimoTransferencia > 0 ? $"Por transferencia, desde {_reglas.MinimoTransferencia:C0}." : "";
+
+            if (recargo > 0 && ConTransferencia)
+            {
+                lblRecargo.Text = $"Incluye recargo por transferencia: {detalle}.";
+                lblRecargo.ForeColor = Estilos.Advertencia;
+            }
+            else
+            {
+                lblRecargo.Text = recargo > 0 ? $"Si paga por transferencia: + {detalle}. {minimo}" : minimo;
+                lblRecargo.ForeColor = SystemColors.GrayText;
+            }
+            lblRecargo.Visible = lblRecargo.Text != "";
         }
 
         private void Confirmar()

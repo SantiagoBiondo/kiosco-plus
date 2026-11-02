@@ -8,11 +8,21 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
     /// <summary>
     /// Ventas de un día con totales por medio de pago. Las anuladas se ven en gris y no suman.
     /// Enter o doble clic sobre una venta pide ver su detalle.
+    /// A la derecha, cuánto se vendió ese día de un rubro y/o proveedor (por ejemplo, Cigarrillos o Arcor).
     /// </summary>
     public class ListadoVentasPorDia : UserControl
     {
         private readonly VentaServicio _ventas;
         private readonly ExportadorDeReportes _exportador;
+        private readonly ReporteDeVentasServicio _reportes;
+        private readonly CatalogoServicio<Categoria> _categorias;
+        private readonly CatalogoServicio<Proveedor> _proveedores;
+        private bool _cargandoFiltros;
+
+        private readonly ComboBox cmbRubro = Estilos.Opciones<Opcion<FiltroClasificacion>>([], o => o.Texto, 200);
+        private readonly ComboBox cmbProveedor = Estilos.Opciones<Opcion<FiltroClasificacion>>([], o => o.Texto, 200);
+        private readonly DataGridView grillaVendido = new();
+        private readonly Label lblVendido = new() { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(8), Font = Estilos.Grande, MaximumSize = new Size(640, 0) };
 
         private readonly DateTimePicker dtpDia = new() { Format = DateTimePickerFormat.Long, Width = 300 };
         private readonly DataGridView grilla = new();
@@ -22,10 +32,14 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
         /// <summary>Se eligió una venta para ver su detalle (o anularla).</summary>
         public event EventHandler<ResumenVenta>? VentaElegida;
 
-        public ListadoVentasPorDia(VentaServicio ventas, ExportadorDeReportes exportador)
+        public ListadoVentasPorDia(VentaServicio ventas, ExportadorDeReportes exportador, ReporteDeVentasServicio reportes,
+            CatalogoServicio<Categoria> categorias, CatalogoServicio<Proveedor> proveedores)
         {
             _ventas = ventas;
             _exportador = exportador;
+            _reportes = reportes;
+            _categorias = categorias;
+            _proveedores = proveedores;
             Font = Estilos.Normal;
 
             var arriba = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(6) };
@@ -57,11 +71,37 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             };
             grilla.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Elegir(); };
 
+            // Lo vendido de un rubro o proveedor en el día.
+            var vendido = new Panel { Dock = DockStyle.Right, Width = 660, Padding = new Padding(8, 0, 0, 0) };
+            var filtros = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
+            var titulo = Estilos.Etiqueta("Lo vendido por rubro o proveedor", Estilos.Titulo);
+            filtros.Controls.Add(titulo);
+            filtros.SetFlowBreak(titulo, true);
+            filtros.Controls.Add(new Label { Text = "Rubro:", AutoSize = true, Margin = new Padding(3, 8, 3, 3) });
+            filtros.Controls.Add(cmbRubro);
+            filtros.Controls.Add(new Label { Text = "Proveedor:", AutoSize = true, Margin = new Padding(12, 8, 3, 3) });
+            filtros.Controls.Add(cmbProveedor);
+
+            Estilos.ConfigurarGrilla(grillaVendido);
+            grillaVendido.ReadOnly = true;
+            grillaVendido.TabStop = false;
+            Estilos.Columna(grillaVendido, nameof(RendimientoProducto.Nombre), "Producto", llenar: true);
+            Estilos.Columna(grillaVendido, nameof(RendimientoProducto.Unidades), "Unid.", "N0", 80);
+            Estilos.Columna(grillaVendido, nameof(RendimientoProducto.Vendido), "Vendido", "C2", 130);
+            Estilos.Columna(grillaVendido, nameof(RendimientoProducto.Ganancia), "Ganancia", "C2", 130);
+
+            vendido.Controls.Add(grillaVendido);
+            vendido.Controls.Add(lblVendido);
+            vendido.Controls.Add(filtros);
+
             Controls.Add(grilla);
+            Controls.Add(vendido);
             Controls.Add(lblResumen);
             Controls.Add(arriba);
 
             dtpDia.ValueChanged += (_, _) => { lblEstado.Text = ""; Cargar(); };
+            cmbRubro.SelectedIndexChanged += (_, _) => { if (!_cargandoFiltros) CargarVendido(); };
+            cmbProveedor.SelectedIndexChanged += (_, _) => { if (!_cargandoFiltros) CargarVendido(); };
         }
 
         public void Cargar()
@@ -81,6 +121,46 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
 
             lblResumen.Text = $"{resumen.CantidadVigentes} ventas  ·  TOTAL {resumen.Total:C2}{anuladas}" +
                               (porMedio == "" ? "" : $"\n{porMedio}");
+
+            RecargarFiltros();
+            CargarVendido();
+        }
+
+        private static FiltroClasificacion Elegido(ComboBox combo) =>
+            (combo.SelectedItem as Opcion<FiltroClasificacion>)?.Valor ?? FiltroClasificacion.Todos;
+
+        /// <summary>Vuelve a leer rubros y proveedores (por si se agregó alguno) sin perder lo elegido.</summary>
+        private void RecargarFiltros()
+        {
+            var rubroElegido = Elegido(cmbRubro);
+            var proveedorElegido = Elegido(cmbProveedor);
+            _cargandoFiltros = true;
+            Estilos.CambiarOpciones(cmbRubro, OpcionesDeCatalogo.ParaFiltrar(_categorias.Listar(), "Todos", "Sin rubro"));
+            Estilos.CambiarOpciones(cmbProveedor, OpcionesDeCatalogo.ParaFiltrar(_proveedores.Listar(), "Todos", "Sin proveedor"));
+            Estilos.Elegir<Opcion<FiltroClasificacion>>(cmbRubro, o => o.Valor == rubroElegido);
+            Estilos.Elegir<Opcion<FiltroClasificacion>>(cmbProveedor, o => o.Valor == proveedorElegido);
+            _cargandoFiltros = false;
+        }
+
+        /// <summary>Lo vendido en el día del rubro y proveedor elegidos, con el total abajo.</summary>
+        private void CargarVendido()
+        {
+            var vendidos = _reportes.VendidoPor(PeriodoReporte.Dia(DateOnly.FromDateTime(dtpDia.Value)),
+                Elegido(cmbRubro), Elegido(cmbProveedor));
+            grillaVendido.DataSource = vendidos.ToList();
+
+            var filtro = new List<string>();
+            if (Elegido(cmbRubro) != FiltroClasificacion.Todos)
+                filtro.Add(((Opcion<FiltroClasificacion>)cmbRubro.SelectedItem!).Texto);
+            if (Elegido(cmbProveedor) != FiltroClasificacion.Todos)
+                filtro.Add(((Opcion<FiltroClasificacion>)cmbProveedor.SelectedItem!).Texto);
+            var de = filtro.Count == 0 ? "Todo" : string.Join(" de ", filtro);
+
+            var unidades = vendidos.Sum(v => v.Unidades);
+            lblVendido.Text = vendidos.Count == 0
+                ? $"{de}: no se vendió nada este día."
+                : $"{de}: {unidades} {(unidades == 1 ? "unidad" : "unidades")}  ·  {vendidos.Sum(v => v.Vendido):C2}\n" +
+                  $"Ganancia: {vendidos.Sum(v => v.Ganancia):C2}";
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)

@@ -39,20 +39,28 @@ public sealed class Venta
     public decimal Total => Lineas.Sum(l => l.Subtotal);
     public int Unidades => Lineas.Sum(l => l.Cantidad);
 
-    public static Venta DesdeCarrito(Carrito carrito, Cobro cobro, Turno turno, DateTime fecha)
+    /// <param name="reglas">
+    /// Recargo y mínimo por transferencia. Si se paga algo por transferencia, los paquetes con recargo
+    /// quedan registrados con el precio más alto (así sale en el ticket y en los reportes).
+    /// </param>
+    public static Venta DesdeCarrito(Carrito carrito, Cobro cobro, Turno turno, DateTime fecha, ReglasDeCobro? reglas = null)
     {
         ArgumentNullException.ThrowIfNull(carrito);
         ArgumentNullException.ThrowIfNull(cobro);
         ArgumentNullException.ThrowIfNull(turno);
+        reglas ??= ReglasDeCobro.Ninguna;
         if (!turno.EstaAbierto)
             throw new ReglaDeNegocioException("La caja está cerrada. Abrila para poder cobrar.");
         if (carrito.EstaVacio)
             throw new ReglaDeNegocioException("No hay productos para cobrar.");
-        if (cobro.Total != carrito.Total)
+        reglas.ValidarTransferencia(cobro);
+        var conTransferencia = ReglasDeCobro.UsaTransferencia(cobro.Pagos);
+        if (cobro.Total != reglas.TotalACobrar(carrito, conTransferencia))
             throw new InvalidOperationException("El cobro no corresponde al total del carrito.");
 
         var lineas = carrito.Items
-            .Select(i => new LineaVenta(i.Producto.Id, i.Producto.Nombre, i.Cantidad, i.PrecioUnitario, i.Producto.PrecioCosto))
+            .Select(i => new LineaVenta(i.Producto.Id, i.Producto.Nombre, i.Cantidad,
+                reglas.PrecioUnitario(i, conTransferencia), i.CostoUnitario))
             .ToList();
         return new Venta(0, turno.Id, fecha, cobro.Pagos, lineas);
     }

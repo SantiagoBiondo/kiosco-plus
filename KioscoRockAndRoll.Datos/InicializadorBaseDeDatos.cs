@@ -142,6 +142,11 @@ public sealed class InicializadorBaseDeDatos(ConexionSqlite conexion, GestorDeBa
         """
         ALTER TABLE Productos ADD COLUMN PaqueteId INTEGER REFERENCES Productos(Id) ON DELETE SET NULL;
         ALTER TABLE Productos ADD COLUMN UnidadesPorPaquete INTEGER NOT NULL DEFAULT 0;
+        """,
+
+        // 9: productos con el precio puesto al vender (ej.: caramelos por peso). No llevan control de stock.
+        """
+        ALTER TABLE Productos ADD COLUMN PrecioAlVender INTEGER NOT NULL DEFAULT 0;
         """
     ];
 

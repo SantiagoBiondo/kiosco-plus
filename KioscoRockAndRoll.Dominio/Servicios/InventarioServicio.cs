@@ -10,7 +10,7 @@ namespace KioscoRockAndRoll.Dominio.Servicios;
 public sealed record DatosProducto(
     string CodigoBarras, string Nombre, decimal PrecioCosto, decimal PrecioVenta, int Stock, int StockMinimo,
     long? CategoriaId = null, long? ProveedorId = null,
-    string? CodigoPaquete = null, int UnidadesPorPaquete = 0);
+    string? CodigoPaquete = null, int UnidadesPorPaquete = 0, bool PrecioAlVender = false);
 
 /// <summary>Casos de uso del inventario: alta, edición, baja e ingreso de mercadería.</summary>
 public class InventarioServicio(IProductoRepositorio productos)
@@ -43,7 +43,7 @@ public class InventarioServicio(IProductoRepositorio productos)
         var producto = new Producto(datos.CodigoBarras, datos.Nombre, datos.PrecioCosto, datos.PrecioVenta,
             datos.Stock, datos.StockMinimo);
         producto.Clasificar(datos.CategoriaId, datos.ProveedorId);
-        AsignarPaquete(producto, datos);
+        AsignarPaqueteYPrecio(producto, datos);
         productos.Agregar(producto);
         return producto;
     }
@@ -57,7 +57,7 @@ public class InventarioServicio(IProductoRepositorio productos)
         producto.ActualizarDatos(datos.CodigoBarras, datos.Nombre, datos.PrecioCosto, datos.PrecioVenta, datos.StockMinimo);
         producto.AjustarStock(datos.Stock);
         producto.Clasificar(datos.CategoriaId, datos.ProveedorId);
-        AsignarPaquete(producto, datos);
+        AsignarPaqueteYPrecio(producto, datos);
         productos.Actualizar(producto);
         return producto;
     }
@@ -120,6 +120,15 @@ public class InventarioServicio(IProductoRepositorio productos)
 
         productos.ActualizarVarios(aActualizar);
         return aActualizar.Count;
+    }
+
+    // Primero se saca el "precio al vender" para poder asignar el paquete; al final se aplica lo elegido
+    // (si se eligieron las dos cosas, el producto avisa que no se pueden combinar).
+    private void AsignarPaqueteYPrecio(Producto producto, DatosProducto datos)
+    {
+        producto.DefinirPrecioAlVender(false);
+        AsignarPaquete(producto, datos);
+        producto.DefinirPrecioAlVender(datos.PrecioAlVender);
     }
 
     private void AsignarPaquete(Producto producto, DatosProducto datos)

@@ -10,7 +10,7 @@ public sealed class SqliteProductoRepositorio(ConexionSqlite conexion) : IProduc
     // Junto con cada producto suelto se lee el stock de su paquete (los paquetes cerrados que quedan).
     private const string SelectProductos = """
         SELECT p.Id, p.CodigoBarras, p.Nombre, p.PrecioCostoCentavos, p.PrecioVentaCentavos, p.Stock, p.StockMinimo,
-               p.CategoriaId, p.ProveedorId, p.PaqueteId, p.UnidadesPorPaquete, COALESCE(paq.Stock, 0)
+               p.CategoriaId, p.ProveedorId, p.PaqueteId, p.UnidadesPorPaquete, COALESCE(paq.Stock, 0), p.PrecioAlVender
         FROM Productos p
         LEFT JOIN Productos paq ON paq.Id = p.PaqueteId
         """;
@@ -46,8 +46,8 @@ public sealed class SqliteProductoRepositorio(ConexionSqlite conexion) : IProduc
         using var comando = db.CreateCommand();
         comando.CommandText = """
             INSERT INTO Productos (CodigoBarras, Nombre, PrecioCostoCentavos, PrecioVentaCentavos, Stock, StockMinimo,
-                                   CategoriaId, ProveedorId, PaqueteId, UnidadesPorPaquete)
-            VALUES ($codigo, $nombre, $costo, $venta, $stock, $minimo, $categoria, $proveedor, $paquete, $unidades)
+                                   CategoriaId, ProveedorId, PaqueteId, UnidadesPorPaquete, PrecioAlVender)
+            VALUES ($codigo, $nombre, $costo, $venta, $stock, $minimo, $categoria, $proveedor, $paquete, $unidades, $alVender)
             RETURNING Id
             """;
         CargarParametros(comando, producto);
@@ -66,7 +66,7 @@ public sealed class SqliteProductoRepositorio(ConexionSqlite conexion) : IProduc
             SET CodigoBarras = $codigo, Nombre = $nombre, PrecioCostoCentavos = $costo,
                 PrecioVentaCentavos = $venta, Stock = $stock, StockMinimo = $minimo,
                 CategoriaId = $categoria, ProveedorId = $proveedor,
-                PaqueteId = $paquete, UnidadesPorPaquete = $unidades
+                PaqueteId = $paquete, UnidadesPorPaquete = $unidades, PrecioAlVender = $alVender
             WHERE Id = $id
             """;
 
@@ -122,6 +122,7 @@ public sealed class SqliteProductoRepositorio(ConexionSqlite conexion) : IProduc
         comando.Parameters.AddWithValue("$proveedor", (object?)producto.ProveedorId ?? DBNull.Value);
         comando.Parameters.AddWithValue("$paquete", (object?)producto.PaqueteId ?? DBNull.Value);
         comando.Parameters.AddWithValue("$unidades", producto.UnidadesPorPaquete);
+        comando.Parameters.AddWithValue("$alVender", producto.PrecioAlVender);
     }
 
     private static Producto Leer(SqliteDataReader lector) => Producto.Restaurar(
@@ -136,7 +137,8 @@ public sealed class SqliteProductoRepositorio(ConexionSqlite conexion) : IProduc
         proveedorId: lector.IsDBNull(8) ? null : lector.GetInt64(8),
         paqueteId: lector.IsDBNull(9) ? null : lector.GetInt64(9),
         unidadesPorPaquete: lector.GetInt32(10),
-        paquetesCerrados: lector.GetInt32(11));
+        paquetesCerrados: lector.GetInt32(11),
+        precioAlVender: lector.GetBoolean(12));
 
     private static string EscaparLike(string texto) =>
         texto.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");

@@ -41,7 +41,7 @@ public sealed class SqliteVentaRepositorio(ConexionSqlite conexion) : IVentaRepo
         comandoLinea.CommandText = """
             INSERT INTO VentaLineas (VentaId, ProductoId, NombreProducto, Cantidad, PrecioUnitarioCentavos, CostoUnitarioCentavos)
             VALUES ($venta, $producto, $nombre, $cantidad, $precio, $costo);
-            UPDATE Productos SET Stock = Stock - $cantidad WHERE Id = $producto;
+            UPDATE Productos SET Stock = Stock - $cantidad WHERE Id = $producto AND PrecioAlVender = 0;
             """;
         var pVenta = comandoLinea.Parameters.Add("$venta", Microsoft.Data.Sqlite.SqliteType.Integer);
         var pProducto = comandoLinea.Parameters.Add("$producto", Microsoft.Data.Sqlite.SqliteType.Integer);
@@ -311,7 +311,7 @@ public sealed class SqliteVentaRepositorio(ConexionSqlite conexion) : IVentaRepo
             UPDATE Productos
             SET Stock = Stock + (SELECT SUM(l.Cantidad) FROM VentaLineas l
                                  WHERE l.VentaId = $id AND l.ProductoId = Productos.Id)
-            WHERE Id IN (SELECT ProductoId FROM VentaLineas WHERE VentaId = $id)
+            WHERE Id IN (SELECT ProductoId FROM VentaLineas WHERE VentaId = $id) AND PrecioAlVender = 0
             """;
         comando.ExecuteNonQuery();
 

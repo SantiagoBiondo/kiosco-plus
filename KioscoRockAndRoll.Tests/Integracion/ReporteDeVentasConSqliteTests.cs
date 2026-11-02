@@ -22,7 +22,7 @@ public sealed class ReporteDeVentasConSqliteTests : IDisposable
         _caja = new CajaServicio(new SqliteCajaRepositorio(_base.Conexion), reloj);
         _caja.AbrirCaja(0);
         _ventas = new VentaServicio(new SqliteVentaRepositorio(_base.Conexion), _caja, reloj);
-        _reportes = new ReporteDeVentasServicio(new SqliteVentaRepositorio(_base.Conexion));
+        _reportes = new ReporteDeVentasServicio(new SqliteVentaRepositorio(_base.Conexion), new SqliteProductoRepositorio(_base.Conexion));
     }
 
     public void Dispose()
@@ -144,7 +144,7 @@ public sealed class ReporteDeVentasConSqliteTests : IDisposable
 
             new InicializadorBaseDeDatos(conexion).Inicializar();
 
-            var reporte = new ReporteDeVentasServicio(new SqliteVentaRepositorio(conexion))
+            var reporte = new ReporteDeVentasServicio(new SqliteVentaRepositorio(conexion), new SqliteProductoRepositorio(conexion))
                 .Generar(PeriodoReporte.Dia(new DateOnly(2026, 10, 1)), Agrupacion.PorDia);
             Assert.Equal(3000, reporte.Vendido);
             Assert.Equal(2000, reporte.Costo); // se completó con el costo actual del producto

@@ -1,3 +1,4 @@
+using KioscoRockAndRoll.Datos;
 using KioscoRockAndRoll.Dominio.Entidades;
 using KioscoRockAndRoll.Dominio.Servicios;
 using KioscoRockAndRoll.Reportes;
@@ -17,13 +18,16 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         private readonly VentaServicio _ventas;
         private readonly CajaServicio _caja;
         private readonly ImpresoraDeTickets _impresora;
+        private readonly AjustesDeCobro _ajustesDeCobro;
         private readonly Carrito _carrito = new();
+        private ReglasDeCobro _reglas = ReglasDeCobro.Ninguna;
 
         private readonly PanelLateral panelLateral = new();
         private readonly BuscadorProducto buscador;
         private readonly EditorProducto editor;
         private readonly PanelAbrirCaja panelAbrirCaja;
         private readonly PanelCobro panelCobro = new();
+        private readonly PanelPrecioAlVender panelPrecio = new();
 
         private readonly TextBox txtCodigo = new() { Font = Estilos.Grande, Width = 420, PlaceholderText = "Escaneá o escribí el código" };
         private readonly DataGridView grilla = new();
@@ -32,8 +36,9 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         private readonly Label lblEstado = new() { AutoSize = true, Font = Estilos.Normal, Anchor = AnchorStyles.Left };
 
         public VistaVenta(InventarioServicio inventario, VentaServicio ventas, CajaServicio caja, ImpresoraDeTickets impresora,
-            BuscadorProducto buscador, EditorProducto editor, PanelAbrirCaja panelAbrirCaja)
+            AjustesDeCobro ajustesDeCobro, BuscadorProducto buscador, EditorProducto editor, PanelAbrirCaja panelAbrirCaja)
         {
+            _ajustesDeCobro = ajustesDeCobro;
             _inventario = inventario;
             _ventas = ventas;
             _caja = caja;
@@ -109,6 +114,12 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             buscador.Cancelado += (_, _) => CerrarPanel();
             editor.Guardado += (_, producto) => { CerrarPanel(); Agregar(producto, _cantidadPendiente); };
             editor.Cancelado += (_, _) => { CerrarPanel(); MostrarEstado("No se dio de alta el producto.", SystemColors.GrayText); };
+            panelPrecio.Confirmado += (_, elegido) =>
+            {
+                CerrarPanel();
+                AgregarAlCarrito(elegido.Producto, elegido.Cantidad, elegido.Precio);
+            };
+            panelPrecio.Cancelado += (_, _) => { CerrarPanel(); MostrarEstado("No se agregó el producto.", SystemColors.GrayText); };
             panelCobro.Confirmado += (_, cobro) => Cobrar(cobro);
             panelCobro.Cancelado += (_, _) => CerrarPanel();
             // Si se quiso cobrar con la caja cerrada: al abrirla, se sigue con el cobro.
@@ -160,6 +171,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
                 buscador.Dispose();
                 editor.Dispose();
                 panelCobro.Dispose();
+                panelPrecio.Dispose();
                 panelAbrirCaja.Dispose();
             }
             base.Dispose(disposing);
@@ -199,36 +211,52 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             MostrarEstado($"El código {escaneado.Codigo} no está registrado: completá los datos a la derecha.", Estilos.Advertencia);
         }
 
+        /// <summary>
+        /// Agrega el producto al carrito. Si el precio se pone al vender, primero se pregunta en el panel de la derecha.
+        /// </summary>
         private void Agregar(Producto producto, int cantidad)
         {
-            var item = _carrito.Agregar(producto, cantidad);
-            SeleccionarProducto(producto.Id);
+            if (producto.PrecioAlVender)
+            {
+                AbrirPanel(panelPrecio);
+                panelPrecio.Iniciar(producto, cantidad);
+                MostrarEstado($"Poné el precio de \"{producto.Nombre}\" a la derecha.", SystemColors.ControlText);
+                return;
+            }
+            AgregarAlCarrito(producto, cantidad, null);
+        }
+
+        private void AgregarAlCarrito(Producto producto, int cantidad, decimal? precio)
+        {
+            var item = _carrito.Agregar(producto, cantidad, precio);
+            Seleccionar(item);
             InformarItem(item);
             txtCodigo.Focus();
         }
 
         // ---------- Edición del carrito ----------
 
-        private long? ProductoSeleccionadoId => grilla.CurrentRow?.Tag as long?;
+        // Cada fila guarda su renglón del carrito: un mismo producto con precio al vender puede estar en varias.
+        private ItemCarrito? ItemSeleccionado => grilla.CurrentRow?.Tag as ItemCarrito;
 
         private void SumarAlSeleccionado(int diferencia)
         {
-            if (ProductoSeleccionadoId is not { } id || _carrito.Buscar(id) is not { } item)
+            if (ItemSeleccionado is not { } item)
                 return;
 
-            _carrito.CambiarCantidad(id, item.Cantidad + diferencia);
-            if (_carrito.Buscar(id) is { } actualizado)
+            _carrito.CambiarCantidad(item, item.Cantidad + diferencia);
+            if (_carrito.Items.Contains(item))
             {
-                SeleccionarProducto(id);
-                InformarItem(actualizado);
+                Seleccionar(item);
+                InformarItem(item);
             }
             txtCodigo.Focus();
         }
 
         private void QuitarSeleccionado()
         {
-            if (ProductoSeleccionadoId is { } id)
-                _carrito.Quitar(id);
+            if (ItemSeleccionado is { } item)
+                _carrito.Quitar(item);
             txtCodigo.Focus();
         }
 
@@ -246,13 +274,13 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         private void Grilla_CellEndEdit(object? sender, DataGridViewCellEventArgs e)
         {
             var fila = grilla.Rows[e.RowIndex];
-            if (fila.Tag is not long id || !int.TryParse(fila.Cells[e.ColumnIndex].Value?.ToString(), out var cantidad))
+            if (fila.Tag is not ItemCarrito item || !int.TryParse(fila.Cells[e.ColumnIndex].Value?.ToString(), out var cantidad))
                 return;
 
             // Se difiere porque redibujar la grilla dentro de su propio evento de edición no está permitido.
             BeginInvoke(() =>
             {
-                _carrito.CambiarCantidad(id, cantidad);
+                _carrito.CambiarCantidad(item, cantidad);
                 txtCodigo.Focus();
             });
         }
@@ -289,14 +317,15 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
                 panelAbrirCaja.Iniciar("La caja está cerrada. Abrila para poder cobrar.");
                 return;
             }
+            _reglas = _ajustesDeCobro.Leer();
             AbrirPanel(panelCobro);
-            panelCobro.Iniciar(_carrito.Total, _impresora.Configuracion);
+            panelCobro.Iniciar(_carrito, _reglas, _impresora.Configuracion);
         }
 
         private void Cobrar(Cobro cobro)
         {
             var imprimirTicket = panelCobro.ImprimirTicket;
-            var venta = _ventas.Cobrar(_carrito, cobro);
+            var venta = _ventas.Cobrar(_carrito, cobro, _reglas);
             CerrarPanel();
             var vuelto = cobro.Vuelto > 0 ? $"  -  VUELTO: {cobro.Vuelto:C2}" : "";
             MostrarEstado($"Venta Nº {venta.Id} registrada ({venta.Total:C2}, {cobro.Descripcion}){vuelto}", Estilos.Exito);
@@ -342,7 +371,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
 
         private void DibujarCarrito()
         {
-            var seleccionado = ProductoSeleccionadoId;
+            var seleccionado = ItemSeleccionado;
 
             grilla.Rows.Clear();
             foreach (var item in _carrito.Items)
@@ -350,21 +379,21 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
                 var indice = grilla.Rows.Add(item.Producto.CodigoBarras, item.Producto.Nombre, item.Cantidad,
                     item.PrecioUnitario, item.Subtotal);
                 var fila = grilla.Rows[indice];
-                fila.Tag = item.Producto.Id;
+                fila.Tag = item;
                 if (item.SuperaElStock)
                     fila.DefaultCellStyle.ForeColor = Estilos.Advertencia;
             }
 
             lblTotal.Text = _carrito.Total.ToString("C2");
-            if (seleccionado is { } id)
-                SeleccionarProducto(id);
+            if (seleccionado != null)
+                Seleccionar(seleccionado);
         }
 
-        private void SeleccionarProducto(long productoId)
+        private void Seleccionar(ItemCarrito item)
         {
             foreach (DataGridViewRow fila in grilla.Rows)
             {
-                if (fila.Tag is long id && id == productoId)
+                if (ReferenceEquals(fila.Tag, item))
                 {
                     grilla.CurrentCell = fila.Cells[0];
                     return;

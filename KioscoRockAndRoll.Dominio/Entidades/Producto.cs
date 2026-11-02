@@ -40,6 +40,12 @@ public class Producto
 
     public bool SeVendeSuelto => PaqueteId != null;
 
+    /// <summary>
+    /// Si el precio se pone al momento de vender (por ejemplo, caramelos que se venden por peso).
+    /// En ese caso el precio de costo y de venta son de referencia y el stock no se controla.
+    /// </summary>
+    public bool PrecioAlVender { get; private set; }
+
     public Producto(string codigoBarras, string nombre, decimal precioCosto, decimal precioVenta,
         int stock = 0, int stockMinimo = 0)
     {
@@ -52,10 +58,11 @@ public class Producto
     /// <summary>Reconstruye un producto ya guardado. Lo usa la capa de datos.</summary>
     public static Producto Restaurar(long id, string codigoBarras, string nombre, decimal precioCosto,
         decimal precioVenta, int stock, int stockMinimo, long? categoriaId = null, long? proveedorId = null,
-        long? paqueteId = null, int unidadesPorPaquete = 0, int paquetesCerrados = 0)
+        long? paqueteId = null, int unidadesPorPaquete = 0, int paquetesCerrados = 0, bool precioAlVender = false)
     {
         var producto = new Producto(codigoBarras, nombre, precioCosto, precioVenta, 0, stockMinimo) { Id = id };
         producto.Stock = stock;
+        producto.PrecioAlVender = precioAlVender;
         producto.Clasificar(categoriaId, proveedorId);
         if (paqueteId != null)
         {
@@ -74,9 +81,27 @@ public class Producto
     /// </summary>
     public int StockDisponible => Stock + (SeVendeSuelto ? Math.Max(PaquetesCerrados, 0) * UnidadesPorPaquete : 0);
 
-    public bool StockBajo => StockDisponible <= StockMinimo;
+    /// <summary>Si se lleva la cuenta del stock (no en los productos con precio al vender).</summary>
+    public bool ControlaStock => !PrecioAlVender;
 
-    public bool TieneStockPara(int cantidad) => StockDisponible >= cantidad;
+    public bool StockBajo => ControlaStock && StockDisponible <= StockMinimo;
+
+    public bool TieneStockPara(int cantidad) => !ControlaStock || StockDisponible >= cantidad;
+
+    /// <summary>Indica si el precio se pone al vender (true) o es el precio de venta cargado (false).</summary>
+    public void DefinirPrecioAlVender(bool alVender)
+    {
+        if (alVender && SeVendeSuelto)
+            throw new ReglaDeNegocioException("Un producto que sale de un paquete no puede tener el precio al vender.");
+        PrecioAlVender = alVender;
+    }
+
+    /// <summary>
+    /// El costo estimado de una venta a un precio puesto en el momento: se mantiene la misma proporción
+    /// entre costo y venta que en los precios de referencia (si no hay precio de referencia, es 0).
+    /// </summary>
+    public decimal CostoEstimadoPara(decimal precio) =>
+        PrecioVenta > 0 ? Math.Round(precio * PrecioCosto / PrecioVenta, 2) : 0;
 
     public void AsignarId(long id)
     {
@@ -134,6 +159,8 @@ public class Producto
             throw new InvalidOperationException("El paquete tiene que estar guardado.");
         if (paquete.Id == Id || paquete.CodigoBarras == CodigoBarras)
             throw new ReglaDeNegocioException("Un producto no puede salir de sí mismo: el paquete tiene que ser otro producto.");
+        if (PrecioAlVender)
+            throw new ReglaDeNegocioException("Un producto con el precio al vender no puede salir de un paquete.");
         if (paquete.SeVendeSuelto)
             throw new ReglaDeNegocioException($"\"{paquete.Nombre}\" ya se vende suelto de otro paquete: elegí el paquete cerrado.");
         if (unidadesPorPaquete < 2)
