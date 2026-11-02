@@ -88,6 +88,8 @@ namespace Proyecto_Kiosco_Rock_Roll
             if (indice >= 0 && indice + 1 < args.Length)
                 return Path.GetFullPath(args[indice + 1]);
 
+            // La carpeta conserva el nombre de antes de que el programa se llamara Kiosco+,
+            // así la base del kiosco se sigue encontrando después de actualizar.
             return Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "KioscoRockAndRoll", "kiosco.db");

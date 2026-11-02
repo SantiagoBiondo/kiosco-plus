@@ -10,6 +10,11 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- El símbolo de Kiosco+: el .exe lo usa como ícono y la ventana lo carga de acá. -->
+    <EmbeddedResource Include="Recursos\KioscoPlus.ico" LogicalName="KioscoPlus.ico" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -21,10 +26,11 @@
 
   <!-- Datos del programa (se ven en Propiedades > Detalles del .exe). -->
   <PropertyGroup>
-    <AssemblyName>KioscoRockAndRoll</AssemblyName>
-    <Product>Kiosco Rock &amp; Roll</Product>
-    <AssemblyTitle>Kiosco Rock &amp; Roll</AssemblyTitle>
-    <Description>Ventas, inventario y caja del Kiosco Rock &amp; Roll</Description>
+    <AssemblyName>KioscoPlus</AssemblyName>
+    <Product>Kiosco+</Product>
+    <AssemblyTitle>Kiosco+</AssemblyTitle>
+    <Description>Kiosco+: ventas, inventario y caja para kioscos</Description>
+    <ApplicationIcon>Recursos\KioscoPlus.ico</ApplicationIcon>
     <Version>1.4.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>

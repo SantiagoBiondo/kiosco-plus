@@ -3,7 +3,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz
     /// <summary>Cuadros de diálogo comunes, para no repetir MessageBox.Show en todos lados.</summary>
     public static class Mensajes
     {
-        private const string Titulo = "Kiosco Rock & Roll";
+        private const string Titulo = "Kiosco+";
 
         public static void Advertencia(IWin32Window? duenio, string texto) =>
             MessageBox.Show(duenio, texto, Titulo, MessageBoxButtons.OK, MessageBoxIcon.Warning);

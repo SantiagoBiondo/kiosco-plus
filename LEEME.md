@@ -1,13 +1,13 @@
-# Kiosco Rock & Roll
+# Kiosco+ — guía de instalación y uso
 
-Programa de ventas, inventario y caja para el kiosco.
+Programa de ventas, inventario y caja del Kiosco Rock & Roll. (Para una presentación del proyecto, ver [README.md](README.md).)
 
 ## Instalar en la computadora del kiosco
 
 **Requisitos:** Windows 10 u 11 de 64 bits. No hace falta instalar nada más: el programa trae todo adentro.
 
 1. Generá el ejecutable (ver [Generar el ejecutable](#generar-el-ejecutable)) o usá el que ya está en la carpeta `publicar`.
-2. Copiá `KioscoRockAndRoll.exe` a la computadora del kiosco, por ejemplo a `C:\Kiosco\`.
+2. Copiá `KioscoPlus.exe` a la computadora del kiosco, por ejemplo a `C:\Kiosco\`.
 3. Clic derecho sobre el archivo → **Enviar a** → **Escritorio (crear acceso directo)**.
 4. La primera vez, Windows puede mostrar *"Windows protegió su PC"* porque el programa no está firmado digitalmente.
    Hacé clic en **Más información** → **Ejecutar de todas formas**. Solo pasa la primera vez.
@@ -34,7 +34,11 @@ así una copia de los datos queda fuera de la computadora del kiosco.
 ## Actualizar a una versión nueva
 
 1. Cerrá el programa.
-2. Reemplazá `KioscoRockAndRoll.exe` por el nuevo.
+2. Reemplazá `KioscoPlus.exe` por el nuevo.
+
+> **Si venías usando `KioscoRockAndRoll.exe`:** desde que el programa se llama Kiosco+, el archivo es
+> `KioscoPlus.exe`. Borrá el `.exe` viejo y su acceso directo del escritorio, copiá el nuevo y creale
+> un acceso directo como en la instalación. Los datos siguen donde estaban.
 
 Los datos no se tocan, porque están en otra carpeta. Si la versión nueva necesita actualizar la base,
 lo hace sola al abrir y antes guarda una copia de seguridad.
@@ -71,13 +75,13 @@ lo hace sola al abrir y antes guarda una copia de seguridad.
   dotnet publish "Proyecto Kiosco Rock&Roll" -p:PublishProfile=Kiosco
   ```
 
-El resultado es un único `publicar\KioscoRockAndRoll.exe`. Antes de publicar una versión nueva,
+El resultado es un único `publicar\KioscoPlus.exe`. Antes de publicar una versión nueva,
 subí el número de `<Version>` en `Proyecto Kiosco Rock&Roll.csproj`.
 
 ### Probar sin tocar los datos reales
 
 ```
-KioscoRockAndRoll.exe --base practica.db
+KioscoPlus.exe --base practica.db
 ```
 
 Usa (o crea) otra base de datos, ideal para practicar o mostrar el programa.

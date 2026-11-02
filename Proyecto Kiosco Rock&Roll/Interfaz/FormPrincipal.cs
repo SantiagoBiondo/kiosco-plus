@@ -19,7 +19,11 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz
         {
             _backups = backups;
 
-            Text = "Kiosco Rock & Roll";
+            Text = "Kiosco+";
+            // El mismo símbolo del .exe, para la barra de título y la barra de tareas.
+            using (var icono = typeof(FormPrincipal).Assembly.GetManifestResourceStream("KioscoPlus.ico"))
+                if (icono != null)
+                    Icon = new Icon(icono);
             Font = Estilos.Normal;
             Size = new Size(1200, 750);
             MinimumSize = new Size(1000, 600);
