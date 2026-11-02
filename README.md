@@ -71,14 +71,14 @@ Algunas decisiones de diseño:
 Requisitos: Windows 10/11 y el [SDK de .NET 10](https://dotnet.microsoft.com/download).
 
 ```bash
-git clone https://github.com/SantiagoBiondo/kiosco-rock-and-roll.git
-cd kiosco-rock-and-roll
+git clone https://github.com/SantiagoBiondo/kiosco-plus.git
+cd kiosco-plus
 dotnet test
 dotnet run --project "Proyecto Kiosco Rock&Roll" -- --base practica.db
 ```
 
 `--base practica.db` usa una base de prueba aparte. La guía de instalación para el kiosco está en [LEEME.md](LEEME.md),
-y el ejecutable listo para usar, en [Releases](https://github.com/SantiagoBiondo/kiosco-rock-and-roll/releases).
+y el ejecutable listo para usar, en [Releases](https://github.com/SantiagoBiondo/kiosco-plus/releases).
 
 ## Autor
 
