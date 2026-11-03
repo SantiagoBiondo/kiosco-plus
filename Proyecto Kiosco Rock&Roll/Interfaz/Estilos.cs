@@ -57,6 +57,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz
             grilla.Font = Normal;
             grilla.RowTemplate.Height = 32;
             grilla.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            ActivarDobleBuffer(grilla);
 
             if (Oscuro)
             {
@@ -73,6 +74,16 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz
                 grilla.DefaultCellStyle.SelectionForeColor = Color.White;
             }
         }
+
+        /// <summary>
+        /// La grilla se dibuja primero en memoria y después se muestra de una vez. Sin esto, cada línea
+        /// de cada celda se dibuja directo en la pantalla y una lista llena tarda casi medio segundo en aparecer.
+        /// DoubleBuffered es protegida en DataGridView, por eso se activa por reflexión.
+        /// </summary>
+        private static void ActivarDobleBuffer(DataGridView grilla) =>
+            typeof(DataGridView)
+                .GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .SetValue(grilla, true);
 
         public static DataGridViewTextBoxColumn Columna(
             DataGridView grilla, string propiedad, string titulo,
