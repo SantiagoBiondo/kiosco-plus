@@ -21,6 +21,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         private readonly PanelCategorias panelCategorias;
         private readonly PanelProveedores panelProveedores;
         private readonly PanelPedido panelPedido;
+        private readonly PanelImportacion panelImportacion;
 
         private readonly TextBox txtBuscar = new() { Width = 320, Font = Estilos.Grande, PlaceholderText = "Buscar por nombre o código" };
         private readonly ComboBox cmbCategoria = Estilos.Opciones<Opcion<FiltroClasificacion>>([], o => o.Texto, 200);
@@ -38,8 +39,10 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         public VistaInventario(InventarioServicio inventario,
             CatalogoServicio<Categoria> categorias, CatalogoServicio<Proveedor> proveedores,
             EditorProducto editor, PanelAjustePrecios ajustePrecios,
-            PanelCategorias panelCategorias, PanelProveedores panelProveedores, PanelPedido panelPedido)
+            PanelCategorias panelCategorias, PanelProveedores panelProveedores, PanelPedido panelPedido,
+            PanelImportacion panelImportacion)
         {
+            this.panelImportacion = panelImportacion;
             _inventario = inventario;
             _categorias = categorias;
             _proveedores = proveedores;
@@ -88,6 +91,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             abajo.Controls.Add(Estilos.Boton("Armar pedido (F7)", (_, _) => AbrirPedido(), 180));
             abajo.Controls.Add(Estilos.Boton("Categorías (F8)", (_, _) => AbrirCatalogo(panelCategorias), 160));
             abajo.Controls.Add(Estilos.Boton("Proveedores (F9)", (_, _) => AbrirCatalogo(panelProveedores), 170));
+            abajo.Controls.Add(Estilos.Boton("Importar de Excel…", (_, _) => AbrirImportacion(), 190));
             abajo.Controls.Add(lblEstado);
 
             var principal = new Panel { Dock = DockStyle.Fill };
@@ -112,6 +116,13 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             };
             ajustePrecios.Cancelado += (_, _) => CerrarPanel();
             panelPedido.Cerrado += (_, _) => CerrarPanel();
+            panelImportacion.Cerrado += (_, _) => CerrarPanel();
+            panelImportacion.Importado += (_, resultado) =>
+            {
+                CerrarPanel();
+                RecargarCatalogos(); // pudo haber rubros y proveedores nuevos
+                MostrarEstado($"Importación lista: {resultado.Descripcion}", Estilos.Exito);
+            };
             // Al cambiar el catálogo se actualizan los filtros y los nombres de la grilla.
             panelCategorias.Cambiado += (_, _) => RecargarCatalogos();
             panelCategorias.Cerrado += (_, _) => CerrarPanel();
@@ -161,6 +172,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
                 panelCategorias.Dispose();
                 panelProveedores.Dispose();
                 panelPedido.Dispose();
+                panelImportacion.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -284,6 +296,12 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         {
             panelLateral.Mostrar(panelPedido);
             panelPedido.Activar(Elegido(cmbProveedor).Id);
+        }
+
+        private void AbrirImportacion()
+        {
+            panelLateral.Mostrar(panelImportacion, PanelImportacion.AnchoSugerido);
+            panelImportacion.Iniciar();
         }
 
         private void AbrirCatalogo<T>(PanelCatalogo<T> panel) where T : ElementoDeCatalogo

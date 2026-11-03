@@ -6,8 +6,11 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
     /// </summary>
     public class PanelLateral : Panel
     {
+        private readonly int _anchoNormal;
+
         public PanelLateral(int ancho = 460)
         {
+            _anchoNormal = ancho;
             Dock = DockStyle.Right;
             Width = ancho;
             Padding = new Padding(16);
@@ -18,10 +21,12 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
         public bool Abierto => Visible;
         public Control? Contenido => Controls.Count > 0 ? Controls[0] : null;
 
-        public void Mostrar(Control contenido)
+        /// <param name="ancho">Para un contenido que necesita más lugar (por ejemplo, una vista previa); si no, el ancho normal.</param>
+        public void Mostrar(Control contenido, int? ancho = null)
         {
             SuspendLayout();
             Controls.Clear(); // no destruye el control anterior: se reutiliza
+            Width = ancho ?? _anchoNormal;
             contenido.Dock = DockStyle.Fill;
             Controls.Add(contenido);
             Visible = true;

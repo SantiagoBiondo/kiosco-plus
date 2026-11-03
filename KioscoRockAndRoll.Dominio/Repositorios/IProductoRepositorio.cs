@@ -18,6 +18,10 @@ public interface IProductoRepositorio
 
     /// <summary>Guarda varios productos en una sola operación atómica.</summary>
     void ActualizarVarios(IReadOnlyCollection<Producto> productos);
+
+    /// <summary>Agrega los nuevos y guarda los modificados en una sola operación atómica (todo o nada).</summary>
+    void GuardarImportacion(IReadOnlyCollection<Producto> nuevos, IReadOnlyCollection<Producto> modificados);
+
     void Eliminar(long id);
     bool TieneVentas(long id);
 }

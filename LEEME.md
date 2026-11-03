@@ -18,6 +18,17 @@ Funciona con cualquier lector USB que trabaje "como teclado" (la gran mayoría v
 el lector escribe el código y aprieta Enter. Para probarlo, abrí el Bloc de notas y escaneá algo:
 tiene que aparecer el número y pasar a la línea siguiente.
 
+### Si venías usando otro programa
+
+No hace falta cargar los productos a mano. En el programa anterior, exportá los productos a Excel o CSV
+(casi todos tienen una opción "Exportar"). Después, en Kiosco+: **Inventario → Importar de Excel…**
+
+1. **Elegir archivo…** y elegí la planilla (`.xlsx` o `.csv`; si es un `.xls` viejo, guardala antes como `.xlsx`).
+2. Revisá qué columna es cada dato. El programa lo adivina por los títulos; si se equivoca o no lo encuentra
+   (por ejemplo, si el proveedor se llama "Empresa"), elegilo en la lista.
+3. Mirá la vista previa: dice qué pasa con cada producto. Lo que está en rojo tiene un error y no se importa.
+4. **Importar**. Antes se guarda una copia de seguridad de los datos.
+
 ## Dónde quedan los datos
 
 | Qué | Dónde |

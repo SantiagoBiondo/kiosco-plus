@@ -26,6 +26,7 @@ sola ventana, se maneja con el lector de códigos y unas pocas teclas, y cada ac
 - **Reglas de negocio configurables**: recargo por paquete de cigarrillos al pagar por transferencia y monto mínimo para transferir.
 - **Productos con precio al vender** (por peso) y **unidades sueltas** que abren paquetes automáticamente.
 - **Inventario** con categorías, proveedores, alertas de stock bajo y **aumentos masivos de precios** con vista previa.
+- **Importación desde otro programa** (Excel .xlsx o CSV): detecta las columnas por sus títulos, muestra fila por fila qué va a pasar y guarda todo en una sola transacción, con backup previo.
 - **Caja por turnos**: apertura, ingresos y retiros, cierre con diferencia de efectivo y anulación de ventas.
 - **Reportes** de ventas y ganancia por período, y lo vendido por rubro o proveedor.
 - **Impresión**: tickets en impresoras térmicas y **etiquetas de precio** en hojas A4; exportación de ventas a **PDF**.

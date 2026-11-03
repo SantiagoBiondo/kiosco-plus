@@ -40,42 +40,61 @@ public sealed class SqliteProductoRepositorio(ConexionSqlite conexion) : IProduc
         return productos;
     }
 
+    private const string InsertarProducto = """
+        INSERT INTO Productos (CodigoBarras, Nombre, PrecioCostoCentavos, PrecioVentaCentavos, Stock, StockMinimo,
+                               CategoriaId, ProveedorId, PaqueteId, UnidadesPorPaquete, PrecioAlVender)
+        VALUES ($codigo, $nombre, $costo, $venta, $stock, $minimo, $categoria, $proveedor, $paquete, $unidades, $alVender)
+        RETURNING Id
+        """;
+
+    private const string ActualizarProducto = """
+        UPDATE Productos
+        SET CodigoBarras = $codigo, Nombre = $nombre, PrecioCostoCentavos = $costo,
+            PrecioVentaCentavos = $venta, Stock = $stock, StockMinimo = $minimo,
+            CategoriaId = $categoria, ProveedorId = $proveedor,
+            PaqueteId = $paquete, UnidadesPorPaquete = $unidades, PrecioAlVender = $alVender
+        WHERE Id = $id
+        """;
+
     public void Agregar(Producto producto)
     {
         using var db = conexion.Abrir();
         using var comando = db.CreateCommand();
-        comando.CommandText = """
-            INSERT INTO Productos (CodigoBarras, Nombre, PrecioCostoCentavos, PrecioVentaCentavos, Stock, StockMinimo,
-                                   CategoriaId, ProveedorId, PaqueteId, UnidadesPorPaquete, PrecioAlVender)
-            VALUES ($codigo, $nombre, $costo, $venta, $stock, $minimo, $categoria, $proveedor, $paquete, $unidades, $alVender)
-            RETURNING Id
-            """;
+        comando.CommandText = InsertarProducto;
         CargarParametros(comando, producto);
         producto.AsignarId((long)comando.ExecuteScalar()!);
     }
 
     public void Actualizar(Producto producto) => ActualizarVarios([producto]);
 
-    public void ActualizarVarios(IReadOnlyCollection<Producto> productos)
+    public void ActualizarVarios(IReadOnlyCollection<Producto> productos) => GuardarImportacion([], productos);
+
+    public void GuardarImportacion(IReadOnlyCollection<Producto> nuevos, IReadOnlyCollection<Producto> modificados)
     {
         using var db = conexion.Abrir();
         using var transaccion = db.BeginTransaction();
-        using var comando = db.CreateCommand();
-        comando.CommandText = """
-            UPDATE Productos
-            SET CodigoBarras = $codigo, Nombre = $nombre, PrecioCostoCentavos = $costo,
-                PrecioVentaCentavos = $venta, Stock = $stock, StockMinimo = $minimo,
-                CategoriaId = $categoria, ProveedorId = $proveedor,
-                PaqueteId = $paquete, UnidadesPorPaquete = $unidades, PrecioAlVender = $alVender
-            WHERE Id = $id
-            """;
 
-        foreach (var producto in productos)
+        using (var insertar = db.CreateCommand())
         {
-            comando.Parameters.Clear();
-            CargarParametros(comando, producto);
-            comando.Parameters.AddWithValue("$id", producto.Id);
-            comando.ExecuteNonQuery();
+            insertar.CommandText = InsertarProducto;
+            foreach (var producto in nuevos)
+            {
+                insertar.Parameters.Clear();
+                CargarParametros(insertar, producto);
+                producto.AsignarId((long)insertar.ExecuteScalar()!);
+            }
+        }
+
+        using (var actualizar = db.CreateCommand())
+        {
+            actualizar.CommandText = ActualizarProducto;
+            foreach (var producto in modificados)
+            {
+                actualizar.Parameters.Clear();
+                CargarParametros(actualizar, producto);
+                actualizar.Parameters.AddWithValue("$id", producto.Id);
+                actualizar.ExecuteNonQuery();
+            }
         }
 
         transaccion.Commit();
