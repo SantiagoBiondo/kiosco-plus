@@ -175,6 +175,25 @@ public sealed class ServiciosConSqliteTests : IDisposable
     }
 
     [Fact]
+    public void AplicarAjuste_APrecioFijo_DejaLasVariedadesAlMismoPrecio()
+    {
+        var coca = CrearCoca();
+        var cofler = _inventario.Crear(new DatosProducto("111", "Cofler", 800, 1100, 0, 0));
+        var coflerMani = _inventario.Crear(new DatosProducto("222", "Cofler con maní", 850, 1150, 0, 0));
+
+        var actualizados = _inventario.AplicarAjuste([cofler.Id, coflerMani.Id],
+            AjustePrecios.APrecioFijo(1200, PreciosAAjustar.SoloVenta));
+
+        Assert.Equal(2, actualizados);
+        Assert.Equal((800m, 1200m), Precios(cofler));
+        Assert.Equal((850m, 1200m), Precios(coflerMani));   // el costo no se toca
+        Assert.Equal(899.99m, _inventario.ObtenerPorId(coca.Id)!.PrecioVenta);
+
+        (decimal Costo, decimal Venta) Precios(Producto p) =>
+            (_inventario.ObtenerPorId(p.Id)!.PrecioCosto, _inventario.ObtenerPorId(p.Id)!.PrecioVenta);
+    }
+
+    [Fact]
     public void AplicarAjuste_SinProductos_Falla()
     {
         Assert.Throws<ReglaDeNegocioException>(() =>

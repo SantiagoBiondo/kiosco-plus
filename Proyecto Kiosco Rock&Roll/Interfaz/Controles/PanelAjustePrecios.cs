@@ -5,22 +5,40 @@ using KioscoRockAndRoll.Dominio.Servicios;
 namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
 {
     /// <summary>
-    /// Aumento (o baja) de precios por porcentaje para un grupo de productos,
-    /// con vista previa antes de aplicar. Enter aplica, Esc cancela.
+    /// Cambio de precios para un grupo de productos, con vista previa antes de aplicar:
+    /// aumentar o bajar un porcentaje, o poner el mismo precio a todos (por ejemplo, variedades
+    /// de un chocolate que valen lo mismo). Enter aplica, Esc cancela.
     /// </summary>
     public class PanelAjustePrecios : UserControl
     {
         private static readonly decimal[] OpcionesRedondeo = [0, 1, 5, 10, 50, 100];
 
+        private sealed record Modo(bool PrecioFijo, string Texto);
+
+        private static readonly Modo[] Modos =
+        [
+            new(false, "Aumentar o bajar un porcentaje"),
+            new(true, "Poner el mismo precio a todos")
+        ];
+
+        private static readonly PreciosAAjustar[] PreciosParaPorcentaje = Enum.GetValues<PreciosAAjustar>();
+        private static readonly PreciosAAjustar[] PreciosParaPrecioFijo = [PreciosAAjustar.SoloVenta, PreciosAAjustar.SoloCosto];
+
         private readonly InventarioServicio _inventario;
         private IReadOnlyList<Producto> _productos = [];
         private string _queProductos = "";
+        private bool _cambiandoModo;
 
+        private readonly ComboBox cmbModo = Estilos.Opciones(Modos, m => m.Texto, 300);
         private readonly NumericUpDown numPorcentaje = Estilos.CampoNumero(2, AjustePrecios.PorcentajeMaximo);
-        private readonly ComboBox cmbPrecios = Estilos.Opciones(Enum.GetValues<PreciosAAjustar>(), p => p.Descripcion());
+        private readonly NumericUpDown numPrecio = Estilos.CampoNumero(2);
+        private readonly ComboBox cmbPrecios = Estilos.Opciones(PreciosParaPorcentaje, p => p.Descripcion());
         private readonly ComboBox cmbRedondeo = Estilos.Opciones(OpcionesRedondeo,
             multiplo => multiplo == 0 ? "Sin redondear" : $"Hacia arriba, a múltiplos de {multiplo:C0}");
-        private readonly Label lblResumen = new() { AutoSize = true, MaximumSize = new Size(440, 0), Margin = new Padding(3, 10, 3, 6) };
+        private readonly Control[] filaPorcentaje;
+        private readonly Control[] filaPrecio;
+        private readonly Control[] filaRedondeo;
+        private readonly Label lblResumen = new() { AutoSize = true, MaximumSize = new Size(480, 0), Margin = new Padding(3, 10, 3, 6) };
         private readonly DataGridView grilla = new();
         private readonly DataGridViewTextBoxColumn colAntes;
         private readonly DataGridViewTextBoxColumn colDespues;
@@ -38,17 +56,18 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             numPorcentaje.Minimum = -99.99m;
             numPorcentaje.Width = 140;
             numPorcentaje.Font = Estilos.Grande;
+            numPrecio.Width = 180;
+            numPrecio.Font = Estilos.Grande;
 
             var tabla = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Dock = DockStyle.Top };
             var titulo = Estilos.Etiqueta("Actualizar precios", Estilos.Titulo);
             tabla.Controls.Add(titulo);
             tabla.SetColumnSpan(titulo, 2);
-            tabla.Controls.Add(Estilos.Etiqueta("Porcentaje (%)"));
-            tabla.Controls.Add(numPorcentaje);
-            tabla.Controls.Add(Estilos.Etiqueta("Qué precios"));
-            tabla.Controls.Add(cmbPrecios);
-            tabla.Controls.Add(Estilos.Etiqueta("Redondeo venta"));
-            tabla.Controls.Add(cmbRedondeo);
+            Fila(tabla, "Cómo", cmbModo);
+            filaPorcentaje = Fila(tabla, "Porcentaje (%)", numPorcentaje);
+            filaPrecio = Fila(tabla, "Precio nuevo ($)", numPrecio);
+            Fila(tabla, "Qué precio", cmbPrecios);
+            filaRedondeo = Fila(tabla, "Redondeo venta", cmbRedondeo);
             tabla.Controls.Add(lblResumen);
             tabla.SetColumnSpan(lblResumen, 2);
 
@@ -70,23 +89,33 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             Controls.Add(botones);
             Controls.Add(tabla);
 
-            numPorcentaje.ValueChanged += (_, _) => ActualizarVistaPrevia();
-            numPorcentaje.KeyUp += (_, _) => ActualizarVistaPrevia();
-            cmbPrecios.SelectedIndexChanged += (_, _) => ActualizarVistaPrevia();
+            cmbModo.SelectedIndexChanged += (_, _) => ModoCambiado();
+            foreach (var campo in new[] { numPorcentaje, numPrecio })
+            {
+                campo.ValueChanged += (_, _) => ActualizarVistaPrevia();
+                campo.KeyUp += (_, _) => ActualizarVistaPrevia();
+            }
+            cmbPrecios.SelectedIndexChanged += (_, _) => { if (!_cambiandoModo) ActualizarVistaPrevia(); };
             cmbRedondeo.SelectedIndexChanged += (_, _) => ActualizarVistaPrevia();
         }
 
         /// <param name="productos">Los productos a los que se va a aplicar el ajuste.</param>
-        /// <param name="queProductos">Cómo se eligieron, en palabras (ej.: "categoría Golosinas, proveedor Arcor").</param>
-        public void Iniciar(IReadOnlyList<Producto> productos, string queProductos)
+        /// <param name="queProductos">Cómo se eligieron, en palabras (ej.: "categoría Golosinas" o "los 3 que marcaste").</param>
+        /// <param name="precioFijo">Empezar con "Poner el mismo precio a todos" (cuando se marcaron productos uno por uno).</param>
+        public void Iniciar(IReadOnlyList<Producto> productos, string queProductos, bool precioFijo = false)
         {
-            numPorcentaje.Value = 0;
-            numPorcentaje.Text = "";
-            CambiarProductos(productos, queProductos);
-            numPorcentaje.Focus();
+            foreach (var campo in new[] { numPorcentaje, numPrecio })
+            {
+                campo.Value = 0;
+                campo.Text = "";
+            }
+            _productos = productos;
+            _queProductos = queProductos;
+            Estilos.Elegir<Modo>(cmbModo, m => m.PrecioFijo == precioFijo);
+            ModoCambiado();
         }
 
-        /// <summary>Cambia el grupo de productos sin perder lo que ya se cargó (por ejemplo, al filtrar la lista).</summary>
+        /// <summary>Cambia el grupo de productos sin perder lo que ya se cargó (por ejemplo, al filtrar o marcar).</summary>
         public void CambiarProductos(IReadOnlyList<Producto> productos, string queProductos)
         {
             _productos = productos;
@@ -104,7 +133,39 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
+        private static Control[] Fila(TableLayoutPanel tabla, string etiqueta, Control campo)
+        {
+            var label = Estilos.Etiqueta(etiqueta);
+            tabla.Controls.Add(label);
+            tabla.Controls.Add(campo);
+            return [label, campo];
+        }
+
+        private bool EsPrecioFijo => cmbModo.SelectedItem is Modo { PrecioFijo: true };
+
         private PreciosAAjustar PreciosElegidos => (PreciosAAjustar)cmbPrecios.SelectedItem!;
+
+        /// <summary>
+        /// Muestra los campos del modo elegido. Con un precio fijo no hay "costo y venta" (un mismo número no
+        /// puede ser los dos) ni redondeo.
+        /// </summary>
+        private void ModoCambiado()
+        {
+            var fijo = EsPrecioFijo;
+            foreach (var control in filaPorcentaje.Concat(filaRedondeo))
+                control.Visible = !fijo;
+            foreach (var control in filaPrecio)
+                control.Visible = fijo;
+
+            _cambiandoModo = true;
+            var anterior = cmbPrecios.SelectedItem as PreciosAAjustar?;
+            Estilos.CambiarOpciones(cmbPrecios, fijo ? PreciosParaPrecioFijo : PreciosParaPorcentaje);
+            Estilos.Elegir<PreciosAAjustar>(cmbPrecios, p => p == (fijo ? PreciosAAjustar.SoloVenta : anterior ?? PreciosAAjustar.CostoYVenta));
+            _cambiandoModo = false;
+
+            (fijo ? numPrecio : numPorcentaje).Focus();
+            ActualizarVistaPrevia();
+        }
 
         /// <summary>Arma el ajuste con lo cargado en pantalla. Si no es válido devuelve null y dice por qué.</summary>
         private AjustePrecios? LeerAjuste(out string error)
@@ -112,7 +173,9 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             error = "";
             try
             {
-                return new AjustePrecios(numPorcentaje.ValorTipeado(), PreciosElegidos, (decimal)cmbRedondeo.SelectedItem!);
+                return EsPrecioFijo
+                    ? AjustePrecios.APrecioFijo(numPrecio.ValorTipeado(), PreciosElegidos)
+                    : new AjustePrecios(numPorcentaje.ValorTipeado(), PreciosElegidos, (decimal)cmbRedondeo.SelectedItem!);
             }
             catch (ReglaDeNegocioException ex)
             {
@@ -123,6 +186,9 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
 
         private void ActualizarVistaPrevia()
         {
+            if (cmbPrecios.SelectedItem is not PreciosAAjustar)
+                return;
+
             // El redondeo solo aplica a la venta.
             cmbRedondeo.Enabled = PreciosElegidos != PreciosAAjustar.SoloCosto;
 
@@ -133,8 +199,8 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
             colAntes.HeaderText = muestraCosto ? "Costo antes" : "Venta antes";
             colDespues.HeaderText = muestraCosto ? "Costo nuevo" : "Venta nueva";
 
-            var cantidad = $"Se aplica a {Estilos.Productos(_productos.Count)}:{_queProductos}.\n" +
-                           "Para elegir otros, cambiá los filtros de arriba de la lista (nombre, categoría o proveedor).";
+            var cantidad = $"Se aplica a {Estilos.Productos(_productos.Count)}: {_queProductos}.\n" +
+                           "Para elegir otros, marcá ✓ en la lista o cambiá los filtros de arriba (nombre, categoría o proveedor).";
             if (LeerAjuste(out var error) is not { } ajuste)
             {
                 grilla.DataSource = null;
@@ -157,9 +223,8 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
                 return;
             }
 
-            var signo = ajuste.Porcentaje > 0 ? "+" : "";
-            var pregunta = $"¿Aplicar {signo}{ajuste.Porcentaje:0.##}% ({ajuste.Precios.Descripcion().ToLower()}) " +
-                           $"a {Estilos.Productos(_productos.Count)} ({_queProductos})?\n\nNo se puede deshacer automáticamente.";
+            var pregunta = $"¿Aplicar {ajuste.Descripcion} a {Estilos.Productos(_productos.Count)} ({_queProductos})?" +
+                           "\n\nNo se puede deshacer automáticamente.";
             if (!Mensajes.Confirmar(this, pregunta))
                 return;
 

@@ -70,7 +70,8 @@ lo hace sola al abrir y antes guarda una copia de seguridad.
 | F12 | Venta | Cobrar |
 | Supr | Venta | Quitar el renglón elegido |
 | Insert | Inventario | Nuevo producto |
-| F6 | Inventario | Actualizar precios por porcentaje (de lo que se ve en la lista) |
+| Espacio o clic en ✓ | Inventario | Marcar productos para cambiarles el precio juntos |
+| F6 | Inventario | Actualizar precios: a los marcados con ✓ o, si no hay, a lo que se ve en la lista (por porcentaje o el mismo precio a todos) |
 | F7 | Inventario | Armar pedido a un proveedor |
 | F8 / F9 | Inventario | Categorías / Proveedores |
 | Enter / Esc | Paneles de la derecha | Confirmar / Cancelar |

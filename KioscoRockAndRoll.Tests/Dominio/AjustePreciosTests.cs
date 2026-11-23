@@ -89,4 +89,48 @@ public class AjustePreciosTests
         Assert.Equal(550m, producto.PrecioCosto);
         Assert.Equal(880m, producto.PrecioVenta);
     }
+
+    // ---------- Precio fijo ----------
+
+    [Fact]
+    public void PrecioFijo_DeVenta_IgualParaTodos_YNoTocaElCosto()
+    {
+        var ajuste = AjustePrecios.APrecioFijo(1200, PreciosAAjustar.SoloVenta);
+
+        Assert.True(ajuste.EsPrecioFijo);
+        Assert.Equal(1200m, ajuste.NuevaVenta(1100));
+        Assert.Equal(1200m, ajuste.NuevaVenta(1350));
+        Assert.Equal(800m, ajuste.NuevoCosto(800));
+    }
+
+    [Fact]
+    public void PrecioFijo_DeCosto_NoTocaLaVenta()
+    {
+        var ajuste = AjustePrecios.APrecioFijo(750.5m, PreciosAAjustar.SoloCosto);
+
+        Assert.Equal(750.5m, ajuste.NuevoCosto(700));
+        Assert.Equal(1100m, ajuste.NuevaVenta(1100));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void PrecioFijo_TieneQueSerMayorACero(decimal precio)
+    {
+        Assert.Throws<ReglaDeNegocioException>(() => AjustePrecios.APrecioFijo(precio, PreciosAAjustar.SoloVenta));
+    }
+
+    [Fact]
+    public void PrecioFijo_NoPuedeSerCostoYVenta()
+    {
+        Assert.Throws<ReglaDeNegocioException>(() => AjustePrecios.APrecioFijo(1000, PreciosAAjustar.CostoYVenta));
+    }
+
+    [Fact]
+    public void Descripcion_ParaConfirmar()
+    {
+        Assert.Equal("+15% (costo y venta)", new AjustePrecios(15, PreciosAAjustar.CostoYVenta).Descripcion);
+        Assert.Equal("-10% (solo precio de venta)", new AjustePrecios(-10, PreciosAAjustar.SoloVenta).Descripcion);
+        Assert.Equal($"precio de venta {1200m:C2}", AjustePrecios.APrecioFijo(1200, PreciosAAjustar.SoloVenta).Descripcion);
+    }
 }

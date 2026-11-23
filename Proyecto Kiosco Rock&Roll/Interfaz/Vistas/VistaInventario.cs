@@ -31,6 +31,19 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         private readonly Label lblResumen = new() { AutoSize = true, Margin = new Padding(12, 14, 3, 3) };
         private readonly Label lblEstado = new() { AutoSize = true, Margin = new Padding(12, 14, 3, 3) };
 
+        // Productos marcados con ✓ para cambiarles el precio juntos. Las marcas se conservan al buscar o filtrar,
+        // así se pueden juntar productos que no aparecen en una misma búsqueda.
+        private readonly HashSet<long> _marcados = [];
+        private readonly DataGridViewCheckBoxColumn colMarca = new()
+        {
+            HeaderText = "✓",
+            Width = 44,
+            Resizable = DataGridViewTriState.False,
+            ToolTipText = "Marcá varios productos (clic o barra espaciadora) para cambiarles el precio juntos con F6"
+        };
+        private readonly Label lblMarcados = new() { AutoSize = true, Margin = new Padding(12, 10, 3, 3) };
+        private readonly Button btnDesmarcar;
+
         // Nombres para mostrar en la grilla en lugar de los Id.
         private Dictionary<long, string> _nombreCategoria = [];
         private Dictionary<long, string> _nombreProveedor = [];
@@ -60,11 +73,17 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             arriba.Controls.Add(cmbProveedor);
             arriba.Controls.Add(chkStockBajo);
             arriba.Controls.Add(lblResumen);
+            arriba.Controls.Add(lblMarcados);
+            btnDesmarcar = Estilos.Boton("Desmarcar todos", (_, _) => Desmarcar(), 170);
+            btnDesmarcar.Height = 34;
+            btnDesmarcar.Margin = new Padding(6, 2, 3, 3);
+            arriba.Controls.Add(btnDesmarcar);
             foreach (var combo in new[] { cmbCategoria, cmbProveedor })
                 combo.Margin = new Padding(3, 6, 3, 3);
 
             Estilos.ConfigurarGrilla(grilla);
             grilla.ReadOnly = true;
+            grilla.Columns.Add(colMarca);
             Estilos.Columna(grilla, nameof(Producto.CodigoBarras), "Código", ancho: 150);
             Estilos.Columna(grilla, nameof(Producto.Nombre), "Producto", llenar: true);
             Estilos.Columna(grilla, nameof(Producto.CategoriaId), "Categoría", ancho: 150);
@@ -81,7 +100,30 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
                 if (e.RowIndex >= 0 && grilla.Rows[e.RowIndex].DataBoundItem is Producto { StockBajo: true })
                     e.CellStyle!.BackColor = Estilos.FondoStockBajo;
             };
-            grilla.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Editar(); };
+            // La columna ✓ no está enlazada a los datos: muestra si el producto está en _marcados.
+            grilla.CellFormatting += (_, e) =>
+            {
+                if (e.ColumnIndex == colMarca.Index && e.RowIndex >= 0)
+                {
+                    e.Value = grilla.Rows[e.RowIndex].DataBoundItem is Producto p && _marcados.Contains(p.Id);
+                    e.FormattingApplied = true;
+                }
+            };
+            // Solo el clic del mouse: la grilla también "hace clic" en la casilla cuando se aprieta espacio sobre ella,
+            // y el espacio ya se atiende abajo (si se atendiera dos veces, marcaría y desmarcaría).
+            grilla.CellMouseClick += (_, e) =>
+            {
+                if (e.Button == MouseButtons.Left && e.ColumnIndex == colMarca.Index && e.RowIndex >= 0)
+                    AlternarMarca(e.RowIndex);
+            };
+            // La barra espaciadora marca o desmarca el producto elegido. Se toma en PreviewKeyDown porque
+            // la grilla no deja llegar el espacio a KeyDown.
+            grilla.PreviewKeyDown += (_, e) =>
+            {
+                if (e.KeyCode == Keys.Space && e.Modifiers == Keys.None && FilaElegida is { } fila)
+                    AlternarMarca(fila.Index);
+            };
+            grilla.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex != colMarca.Index) Editar(); };
 
             var abajo = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(6) };
             abajo.Controls.Add(Estilos.Boton("Nuevo (Insert)", (_, _) => Nuevo(), 150));
@@ -111,6 +153,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             ajustePrecios.Aplicado += (_, cantidad) =>
             {
                 CerrarPanel();
+                _marcados.Clear(); // ya se usaron
                 Cargar(Seleccionado?.Id);
                 MostrarEstado($"Se actualizaron los precios de {Estilos.Productos(cantidad)}.", Estilos.Exito);
             };
@@ -140,7 +183,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             {
                 case EditorProducto: editor.Enfocar(); break;
                 // Los productos pudieron cambiar en otra sección: se recalcula la vista previa.
-                case PanelAjustePrecios: ajustePrecios.CambiarProductos(ProductosVisibles, FiltrosEnPalabras()); break;
+                case PanelAjustePrecios: ajustePrecios.CambiarProductos(ProductosParaAjustar(), QueProductosSeAjustan()); break;
                 case null: txtBuscar.Focus(); break;
             }
         }
@@ -178,6 +221,9 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         }
 
         private Producto? Seleccionado => grilla.CurrentRow?.DataBoundItem as Producto;
+
+        // La fila actual o, si todavía no se hizo clic en ninguna, la que se ve resaltada.
+        private DataGridViewRow? FilaElegida => grilla.CurrentRow ?? grilla.SelectedRows.Cast<DataGridViewRow>().FirstOrDefault();
 
         private IReadOnlyList<Producto> ProductosVisibles => grilla.DataSource as List<Producto> ?? [];
 
@@ -217,8 +263,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
 
             grilla.DataSource = visibles;
             lblEstado.Text = "";
-            if (panelLateral.Contenido == ajustePrecios)
-                ajustePrecios.CambiarProductos(visibles, FiltrosEnPalabras());
+            MostrarMarcados();
             lblResumen.Text = $"{Estilos.Productos(visibles.Count)}  ·{visibles.Count(p => p.StockBajo)} con stock bajo";
 
             var indice = visibles.FindIndex(p => p.Id == seleccionarId);
@@ -262,19 +307,65 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             editor.Enfocar();
         }
 
+        // ---------- Productos marcados ----------
+
+        private void AlternarMarca(int fila)
+        {
+            if (grilla.Rows[fila].DataBoundItem is not Producto producto)
+                return;
+            if (!_marcados.Remove(producto.Id))
+                _marcados.Add(producto.Id);
+            grilla.InvalidateRow(fila);
+            MostrarMarcados();
+        }
+
+        private void Desmarcar()
+        {
+            _marcados.Clear();
+            grilla.Invalidate();
+            MostrarMarcados();
+            txtBuscar.Focus();
+        }
+
+        /// <summary>Cuántos hay marcados (o cómo marcar) y, si el panel de precios está abierto, a qué productos se aplica.</summary>
+        private void MostrarMarcados()
+        {
+            var hay = _marcados.Count > 0;
+            lblMarcados.Text = hay
+                ? $"✓ {(_marcados.Count == 1 ? "1 marcado" : $"{_marcados.Count} marcados")}"
+                : "Tip: marcá ✓ varios productos para cambiarles el precio juntos";
+            lblMarcados.ForeColor = hay ? Estilos.Exito : SystemColors.GrayText;
+            btnDesmarcar.Visible = hay;
+            if (panelLateral.Contenido == ajustePrecios)
+                ajustePrecios.CambiarProductos(ProductosParaAjustar(), QueProductosSeAjustan());
+        }
+
         /// <summary>
-        /// Se aplica a los productos que se ven en la lista: filtrando por una categoría
-        /// o un proveedor (o buscando "coca") se actualizan solo esos; sin filtros, todos.
+        /// A qué productos se les cambia el precio: a los marcados con ✓ si hay alguno; si no, a los que se ven
+        /// en la lista (filtrando por una categoría o un proveedor, o buscando "coca", se actualizan solo esos).
         /// </summary>
+        private IReadOnlyList<Producto> ProductosParaAjustar() => _marcados.Count > 0
+            ? _marcados.Select(_inventario.ObtenerPorId).OfType<Producto>().OrderBy(p => p.Nombre).ToList()
+            : ProductosVisibles;
+
+        private string QueProductosSeAjustan() => _marcados.Count switch
+        {
+            0 => FiltrosEnPalabras(),
+            1 => "el que marcaste",
+            var n => $"los {n} que marcaste"
+        };
+
         private void AbrirAjustePrecios()
         {
-            if (ProductosVisibles.Count == 0)
+            var productos = ProductosParaAjustar();
+            if (productos.Count == 0)
             {
                 MostrarEstado("No hay productos en la lista para actualizar.", Estilos.Advertencia);
                 return;
             }
             panelLateral.Mostrar(ajustePrecios);
-            ajustePrecios.Iniciar(ProductosVisibles, FiltrosEnPalabras());
+            // Cuando se marcan productos uno por uno suele ser para dejarlos al mismo precio.
+            ajustePrecios.Iniciar(productos, QueProductosSeAjustan(), precioFijo: _marcados.Count > 0);
         }
 
         /// <summary>Los filtros de la lista en palabras, para que quede claro a qué productos se aplica algo.</summary>
@@ -330,6 +421,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             try
             {
                 _inventario.Eliminar(producto.Id);
+                _marcados.Remove(producto.Id);
                 Cargar();
             }
             catch (ReglaDeNegocioException ex)
