@@ -65,10 +65,11 @@ lo hace sola al abrir y antes guarda una copia de seguridad.
 | Tecla | Dónde | Qué hace |
 |---|---|---|
 | F1 / F2 / F3 / F4 | Siempre | Venta / Inventario / Ingreso de mercadería / Caja |
-| Enter | Venta | Agrega el producto escaneado (`3*código` agrega 3 unidades) |
-| F5 | Venta | Buscar un producto por nombre |
+| Enter | Venta | Agrega el producto escaneado o escrito (`3*código` agrega 3 unidades) |
+| Letras en la barra | Venta | Muestra los productos que coinciden: ↑ ↓ y Enter para elegir, Esc para cerrar la lista |
 | F12 | Venta | Cobrar |
-| Supr | Venta | Quitar el renglón elegido |
+| Supr / + / − | Venta | Con la barra vacía: quitar el producto elegido (el último agregado) o cambiar su cantidad |
+| ↑ ↓ | Venta | Con la barra vacía: elegir otro producto del carrito |
 | Insert | Inventario | Nuevo producto |
 | Espacio o clic en ✓ | Inventario | Marcar productos para cambiarles el precio juntos |
 | F6 | Inventario | Actualizar precios: a los marcados con ✓ o, si no hay, a lo que se ve en la lista (por porcentaje o el mismo precio a todos) |

@@ -21,7 +21,7 @@ sola ventana, se maneja con el lector de códigos y unas pocas teclas, y cada ac
 
 ## Funcionalidades
 
-- **Venta con lector de códigos de barras**, búsqueda por nombre y alta de productos nuevos sin salir de la venta.
+- **Venta con lector de códigos de barras**, una sola barra para código o nombre (con sugerencias al escribir) y alta de productos nuevos sin salir de la venta.
 - **Cobro con varios medios** (efectivo, débito, crédito, transferencia/QR) y cálculo de vuelto.
 - **Reglas de negocio configurables**: recargo por paquete de cigarrillos al pagar por transferencia y monto mínimo para transferir.
 - **Productos con precio al vender** (por peso) y **unidades sueltas** que abren paquetes automáticamente.
