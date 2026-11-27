@@ -7,8 +7,11 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
     /// <summary>
     /// Caja: abrir y cerrar el turno, registrar ingresos y retiros de efectivo,
     /// ver los cierres anteriores y las ventas de cualquier día.
+    /// Los controles están en VistaCaja.Designer.cs (se editan con el diseñador de Visual Studio);
+    /// el panel de la derecha, lo que se abre en él y el listado de ventas por día se agregan acá
+    /// porque los arma el programa.
     /// </summary>
-    public class VistaCaja : Vista
+    public partial class VistaCaja : Vista
     {
         private readonly CajaServicio _caja;
 
@@ -19,30 +22,8 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         private readonly PanelDetalleVenta panelDetalle;
         private readonly ListadoVentasPorDia ventasPorDia;
 
-        private readonly Label lblEstado = new() { AutoSize = true, Font = Estilos.Titulo, Margin = new Padding(6, 12, 24, 3) };
-        private readonly Label lblAviso = new() { AutoSize = true, Margin = new Padding(12, 16, 3, 3), MaximumSize = new Size(800, 0) };
-        private readonly Button btnAbrir;
-        private readonly Button btnIngreso;
-        private readonly Button btnRetiro;
-        private readonly Button btnCerrar;
-
-        private readonly TabControl pestanias = new() { Dock = DockStyle.Fill, Font = Estilos.Normal, Padding = new Point(16, 6) };
-        private readonly TabPage tabTurno = new("Turno actual");
-
-        // Cuentas del turno (actual o último cerrado).
-        private readonly Label lblTituloResumen = Estilos.Etiqueta("", Estilos.Titulo);
-        private readonly Label lblInicial = ValorResumen();
-        private readonly Label lblVentasEfectivo = ValorResumen();
-        private readonly Label lblIngresos = ValorResumen();
-        private readonly Label lblRetiros = ValorResumen();
-        private readonly Label lblEsperado = ValorResumen(Estilos.Grande);
-        private readonly Label lblContado = ValorResumen(Estilos.Grande);
-        private readonly Label lblDiferencia = ValorResumen(Estilos.Grande);
-        private readonly Label lblOtrosMedios = ValorResumen();
-        private readonly Label lblTotalVendido = ValorResumen();
+        // Las filas de las cuentas que solo tienen sentido con la caja ya cerrada.
         private readonly Control[] filasDeCierre;
-        private readonly DataGridView grillaMovimientos = new();
-        private readonly DataGridView grillaTurnos = new();
 
         public VistaCaja(CajaServicio caja, ListadoVentasPorDia ventasPorDia,
             PanelAbrirCaja panelAbrir, PanelMovimientoCaja panelMovimiento, PanelCerrarCaja panelCerrar,
@@ -55,73 +36,15 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             this.panelCerrar = panelCerrar;
             this.panelDetalle = panelDetalle;
 
-            // Barra de arriba: estado y acciones.
-            var arriba = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(6) };
-            arriba.Controls.Add(lblEstado);
-            btnAbrir = Estilos.Boton("Abrir caja", (_, _) => AbrirPanel(panelAbrir, () => panelAbrir.Iniciar()), 150);
-            btnIngreso = Estilos.Boton("Ingreso de efectivo", (_, _) => AbrirPanel(panelMovimiento, () => panelMovimiento.Iniciar(TipoMovimientoCaja.Ingreso)), 190);
-            btnRetiro = Estilos.Boton("Retiro de efectivo", (_, _) => AbrirPanel(panelMovimiento, () => panelMovimiento.Iniciar(TipoMovimientoCaja.Retiro)), 190);
-            btnCerrar = Estilos.Boton("Cerrar caja", (_, _) => AbrirPanel(panelCerrar, panelCerrar.Iniciar), 150);
-            arriba.Controls.AddRange([btnAbrir, btnIngreso, btnRetiro, btnCerrar, lblAviso]);
+            InitializeComponent();
+            Controls.Add(panelLateral);
 
-            // Pestaña "Turno actual": las cuentas a la izquierda, los movimientos a la derecha.
-            // La tabla va arriba dentro de una columna fija: si la tabla misma ocupara todo el alto,
-            // la última fila se quedaría con el espacio sobrante y su texto aparecería muy abajo.
-            var cuentas = new TableLayoutPanel { ColumnCount = 2, AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(12) };
-            var columnaCuentas = new Panel { Dock = DockStyle.Left, Width = 460 };
-            columnaCuentas.Controls.Add(cuentas);
-            cuentas.Controls.Add(lblTituloResumen);
-            cuentas.SetColumnSpan(lblTituloResumen, 2);
-            AgregarFila(cuentas, "Efectivo inicial", lblInicial);
-            AgregarFila(cuentas, "+ Ventas en efectivo", lblVentasEfectivo);
-            AgregarFila(cuentas, "+ Ingresos de efectivo", lblIngresos);
-            AgregarFila(cuentas, "− Retiros de efectivo", lblRetiros);
-            AgregarFila(cuentas, "= Efectivo esperado", lblEsperado, Estilos.Grande);
-            var filaContado = AgregarFila(cuentas, "Efectivo contado", lblContado, Estilos.Grande);
-            var filaDiferencia = AgregarFila(cuentas, "Diferencia", lblDiferencia, Estilos.Grande);
-            filasDeCierre = [filaContado, lblContado, filaDiferencia, lblDiferencia];
-            AgregarFila(cuentas, "Otros medios de pago", lblOtrosMedios);
-            AgregarFila(cuentas, "Total vendido", lblTotalVendido);
-
+            // Lo que el diseñador no puede hacer: las grillas y el listado de ventas por día.
             Estilos.ConfigurarGrilla(grillaMovimientos);
-            grillaMovimientos.ReadOnly = true;
-            Estilos.Columna(grillaMovimientos, nameof(MovimientoCaja.Fecha), "Hora", "HH:mm", 80);
-            Estilos.Columna(grillaMovimientos, nameof(MovimientoCaja.TipoDescripcion), "Tipo", ancho: 100);
-            Estilos.Columna(grillaMovimientos, nameof(MovimientoCaja.Monto), "Monto", "C2", 130);
-            Estilos.Columna(grillaMovimientos, nameof(MovimientoCaja.Motivo), "Motivo", llenar: true);
-            var movimientos = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12) };
-            movimientos.Controls.Add(grillaMovimientos);
-            movimientos.Controls.Add(new Label { Text = "Ingresos y retiros de efectivo del turno", Dock = DockStyle.Top, Height = 30 });
-
-            tabTurno.Controls.Add(movimientos);
-            tabTurno.Controls.Add(columnaCuentas);
-
-            // Pestaña "Turnos anteriores".
             Estilos.ConfigurarGrilla(grillaTurnos);
-            grillaTurnos.ReadOnly = true;
-            Estilos.Columna(grillaTurnos, nameof(ResumenTurno.Apertura), "Apertura", "dd/MM/yyyy HH:mm", 170);
-            Estilos.Columna(grillaTurnos, nameof(ResumenTurno.Cierre), "Cierre", "dd/MM HH:mm", 130);
-            Estilos.Columna(grillaTurnos, nameof(ResumenTurno.CantidadVentas), "Ventas", "N0", 80);
-            Estilos.Columna(grillaTurnos, nameof(ResumenTurno.TotalVendido), "Total vendido", "C2", 150);
-            Estilos.Columna(grillaTurnos, nameof(ResumenTurno.EfectivoEsperado), "Efectivo esperado", "C2", 170);
-            Estilos.Columna(grillaTurnos, nameof(ResumenTurno.EfectivoContado), "Contado", "C2", 140);
-            Estilos.Columna(grillaTurnos, nameof(ResumenTurno.Diferencia), "Diferencia", llenar: true);
-            grillaTurnos.CellFormatting += FormatearDiferencia;
-            var tabAnteriores = new TabPage("Turnos anteriores");
-            tabAnteriores.Controls.Add(grillaTurnos);
-
-            var tabVentas = new TabPage("Ventas por día");
             ventasPorDia.Dock = DockStyle.Fill;
             tabVentas.Controls.Add(ventasPorDia);
-
-            pestanias.TabPages.AddRange([tabTurno, tabAnteriores, tabVentas]);
-            pestanias.SelectedIndexChanged += (_, _) => Cargar();
-
-            var principal = new Panel { Dock = DockStyle.Fill };
-            principal.Controls.Add(pestanias);
-            principal.Controls.Add(arriba);
-            Controls.Add(principal);
-            Controls.Add(panelLateral);
+            filasDeCierre = [lblConceptoContado, lblContado, lblConceptoDiferencia, lblDiferencia];
 
             panelAbrir.Abierta += (_, _) => CerrarPanel();
             panelAbrir.Cancelado += (_, _) => CerrarPanel();
@@ -155,28 +78,19 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
                 pestanias.Focus();
         }
 
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                panelAbrir.Dispose();
-                panelMovimiento.Dispose();
-                panelCerrar.Dispose();
-                panelDetalle.Dispose();
-            }
-            base.Dispose(disposing);
-        }
+        // ---------- Lo que pasa al tocar cada cosa (conectado en el diseñador) ----------
 
-        private static Label ValorResumen(Font? fuente = null) =>
-            new() { AutoSize = true, Font = fuente ?? Estilos.Normal, Anchor = AnchorStyles.Right, Margin = new Padding(24, 6, 3, 6) };
+        private void BtnAbrir_Click(object? sender, EventArgs e) => AbrirPanel(panelAbrir, () => panelAbrir.Iniciar());
 
-        private static Label AgregarFila(TableLayoutPanel tabla, string concepto, Label valor, Font? fuente = null)
-        {
-            var etiqueta = Estilos.Etiqueta(concepto, fuente);
-            tabla.Controls.Add(etiqueta);
-            tabla.Controls.Add(valor);
-            return etiqueta;
-        }
+        private void BtnIngreso_Click(object? sender, EventArgs e) =>
+            AbrirPanel(panelMovimiento, () => panelMovimiento.Iniciar(TipoMovimientoCaja.Ingreso));
+
+        private void BtnRetiro_Click(object? sender, EventArgs e) =>
+            AbrirPanel(panelMovimiento, () => panelMovimiento.Iniciar(TipoMovimientoCaja.Retiro));
+
+        private void BtnCerrar_Click(object? sender, EventArgs e) => AbrirPanel(panelCerrar, panelCerrar.Iniciar);
+
+        private void Pestanias_SelectedIndexChanged(object? sender, EventArgs e) => Cargar();
 
         private void Cargar()
         {

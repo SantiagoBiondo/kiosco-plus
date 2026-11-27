@@ -8,8 +8,10 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
     /// <summary>
     /// Listado de productos con filtros. El alta, la edición, el ajuste de precios, el pedido
     /// y la administración de categorías y proveedores se hacen en el panel de la derecha.
+    /// Los controles están en VistaInventario.Designer.cs (se editan con el diseñador de Visual Studio);
+    /// el panel de la derecha y lo que se abre en él se agregan acá porque los arma el programa.
     /// </summary>
-    public class VistaInventario : Vista
+    public partial class VistaInventario : Vista
     {
         private readonly InventarioServicio _inventario;
         private readonly CatalogoServicio<Categoria> _categorias;
@@ -23,26 +25,9 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         private readonly PanelPedido panelPedido;
         private readonly PanelImportacion panelImportacion;
 
-        private readonly TextBox txtBuscar = new() { Width = 320, Font = Estilos.Grande, PlaceholderText = "Buscar por nombre o código" };
-        private readonly ComboBox cmbCategoria = Estilos.Opciones<Opcion<FiltroClasificacion>>([], o => o.Texto, 200);
-        private readonly ComboBox cmbProveedor = Estilos.Opciones<Opcion<FiltroClasificacion>>([], o => o.Texto, 200);
-        private readonly CheckBox chkStockBajo = new() { Text = "Solo stock bajo", AutoSize = true, Margin = new Padding(12, 10, 3, 3) };
-        private readonly DataGridView grilla = new();
-        private readonly Label lblResumen = new() { AutoSize = true, Margin = new Padding(12, 14, 3, 3) };
-        private readonly Label lblEstado = new() { AutoSize = true, Margin = new Padding(12, 14, 3, 3) };
-
         // Productos marcados con ✓ para cambiarles el precio juntos. Las marcas se conservan al buscar o filtrar,
         // así se pueden juntar productos que no aparecen en una misma búsqueda.
         private readonly HashSet<long> _marcados = [];
-        private readonly DataGridViewCheckBoxColumn colMarca = new()
-        {
-            HeaderText = "✓",
-            Width = 44,
-            Resizable = DataGridViewTriState.False,
-            ToolTipText = "Marcá varios productos (clic o barra espaciadora) para cambiarles el precio juntos con F6"
-        };
-        private readonly Label lblMarcados = new() { AutoSize = true, Margin = new Padding(12, 10, 3, 3) };
-        private readonly Button btnDesmarcar;
 
         // Nombres para mostrar en la grilla en lugar de los Id.
         private Dictionary<long, string> _nombreCategoria = [];
@@ -65,88 +50,15 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             this.panelProveedores = panelProveedores;
             this.panelPedido = panelPedido;
 
-            var arriba = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(6) };
-            arriba.Controls.Add(txtBuscar);
-            arriba.Controls.Add(new Label { Text = "Categoría:", AutoSize = true, Margin = new Padding(12, 10, 3, 3) });
-            arriba.Controls.Add(cmbCategoria);
-            arriba.Controls.Add(new Label { Text = "Proveedor:", AutoSize = true, Margin = new Padding(12, 10, 3, 3) });
-            arriba.Controls.Add(cmbProveedor);
-            arriba.Controls.Add(chkStockBajo);
-            arriba.Controls.Add(lblResumen);
-            arriba.Controls.Add(lblMarcados);
-            btnDesmarcar = Estilos.Boton("Desmarcar todos", (_, _) => Desmarcar(), 170);
-            btnDesmarcar.Height = 34;
-            btnDesmarcar.Margin = new Padding(6, 2, 3, 3);
-            arriba.Controls.Add(btnDesmarcar);
-            foreach (var combo in new[] { cmbCategoria, cmbProveedor })
-                combo.Margin = new Padding(3, 6, 3, 3);
-
-            Estilos.ConfigurarGrilla(grilla);
-            grilla.ReadOnly = true;
-            grilla.Columns.Add(colMarca);
-            Estilos.Columna(grilla, nameof(Producto.CodigoBarras), "Código", ancho: 150);
-            Estilos.Columna(grilla, nameof(Producto.Nombre), "Producto", llenar: true);
-            Estilos.Columna(grilla, nameof(Producto.CategoriaId), "Categoría", ancho: 150);
-            Estilos.Columna(grilla, nameof(Producto.ProveedorId), "Proveedor", ancho: 150);
-            Estilos.Columna(grilla, nameof(Producto.PrecioCosto), "Costo", "C2", 110);
-            Estilos.Columna(grilla, nameof(Producto.PrecioVenta), "Venta", "C2", 110);
-            Estilos.Columna(grilla, nameof(Producto.Stock), "Stock", "N0", 75);
-            Estilos.Columna(grilla, nameof(Producto.StockMinimo), "Mínimo", "N0", 75);
-
-            grilla.CellFormatting += MostrarNombres;
-            // Los productos con poco stock se pintan de rojo.
-            grilla.CellFormatting += (_, e) =>
-            {
-                if (e.RowIndex >= 0 && grilla.Rows[e.RowIndex].DataBoundItem is Producto { StockBajo: true })
-                    e.CellStyle!.BackColor = Estilos.FondoStockBajo;
-            };
-            // La columna ✓ no está enlazada a los datos: muestra si el producto está en _marcados.
-            grilla.CellFormatting += (_, e) =>
-            {
-                if (e.ColumnIndex == colMarca.Index && e.RowIndex >= 0)
-                {
-                    e.Value = grilla.Rows[e.RowIndex].DataBoundItem is Producto p && _marcados.Contains(p.Id);
-                    e.FormattingApplied = true;
-                }
-            };
-            // Solo el clic del mouse: la grilla también "hace clic" en la casilla cuando se aprieta espacio sobre ella,
-            // y el espacio ya se atiende abajo (si se atendiera dos veces, marcaría y desmarcaría).
-            grilla.CellMouseClick += (_, e) =>
-            {
-                if (e.Button == MouseButtons.Left && e.ColumnIndex == colMarca.Index && e.RowIndex >= 0)
-                    AlternarMarca(e.RowIndex);
-            };
-            // La barra espaciadora marca o desmarca el producto elegido. Se toma en PreviewKeyDown porque
-            // la grilla no deja llegar el espacio a KeyDown.
-            grilla.PreviewKeyDown += (_, e) =>
-            {
-                if (e.KeyCode == Keys.Space && e.Modifiers == Keys.None && FilaElegida is { } fila)
-                    AlternarMarca(fila.Index);
-            };
-            grilla.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex != colMarca.Index) Editar(); };
-
-            var abajo = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(6) };
-            abajo.Controls.Add(Estilos.Boton("Nuevo (Insert)", (_, _) => Nuevo(), 150));
-            abajo.Controls.Add(Estilos.Boton("Editar (Enter)", (_, _) => Editar(), 150));
-            abajo.Controls.Add(Estilos.Boton("Eliminar (Supr)", (_, _) => Eliminar(), 150));
-            abajo.Controls.Add(Estilos.Boton("Actualizar precios (F6)", (_, _) => AbrirAjustePrecios(), 210));
-            abajo.Controls.Add(Estilos.Boton("Armar pedido (F7)", (_, _) => AbrirPedido(), 180));
-            abajo.Controls.Add(Estilos.Boton("Categorías (F8)", (_, _) => AbrirCatalogo(panelCategorias), 160));
-            abajo.Controls.Add(Estilos.Boton("Proveedores (F9)", (_, _) => AbrirCatalogo(panelProveedores), 170));
-            abajo.Controls.Add(Estilos.Boton("Importar de Excel…", (_, _) => AbrirImportacion(), 190));
-            abajo.Controls.Add(lblEstado);
-
-            var principal = new Panel { Dock = DockStyle.Fill };
-            principal.Controls.Add(grilla);
-            principal.Controls.Add(abajo);
-            principal.Controls.Add(arriba);
-            Controls.Add(principal);
+            InitializeComponent();
             Controls.Add(panelLateral);
 
-            txtBuscar.TextChanged += (_, _) => Cargar();
-            chkStockBajo.CheckedChanged += (_, _) => Cargar();
-            cmbCategoria.SelectedIndexChanged += (_, _) => { if (!_cargandoFiltros) Cargar(); };
-            cmbProveedor.SelectedIndexChanged += (_, _) => { if (!_cargandoFiltros) Cargar(); };
+            // Lo que el diseñador no puede hacer: la grilla y las listas de filtros (se llenan al mostrar la vista).
+            Estilos.ConfigurarGrilla(grilla);
+            _cargandoFiltros = true;
+            Estilos.PrepararOpciones<Opcion<FiltroClasificacion>>(cmbCategoria, [], o => o.Texto);
+            Estilos.PrepararOpciones<Opcion<FiltroClasificacion>>(cmbProveedor, [], o => o.Texto);
+            _cargandoFiltros = false;
 
             editor.Guardado += (_, producto) => { CerrarPanel(); Cargar(producto.Id); };
             editor.Cancelado += (_, _) => CerrarPanel();
@@ -205,20 +117,74 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
-        protected override void Dispose(bool disposing)
+        // ---------- Lo que pasa al tocar cada cosa (conectado en el diseñador) ----------
+
+        private void TxtBuscar_TextChanged(object? sender, EventArgs e) => Cargar();
+
+        private void ChkStockBajo_CheckedChanged(object? sender, EventArgs e) => Cargar();
+
+        private void CmbFiltro_SelectedIndexChanged(object? sender, EventArgs e)
         {
-            if (disposing)
-            {
-                // Los paneles que no están en pantalla no son hijos de la vista: se liberan a mano.
-                editor.Dispose();
-                ajustePrecios.Dispose();
-                panelCategorias.Dispose();
-                panelProveedores.Dispose();
-                panelPedido.Dispose();
-                panelImportacion.Dispose();
-            }
-            base.Dispose(disposing);
+            if (!_cargandoFiltros)
+                Cargar();
         }
+
+        private void Grilla_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+        {
+            MostrarNombres(sender, e);
+            if (e.RowIndex < 0)
+                return;
+            var producto = grilla.Rows[e.RowIndex].DataBoundItem as Producto;
+            // Los productos con poco stock se pintan de rojo.
+            if (producto is { StockBajo: true })
+                e.CellStyle!.BackColor = Estilos.FondoStockBajo;
+            // La columna ✓ no está enlazada a los datos: muestra si el producto está en _marcados.
+            if (e.ColumnIndex == colMarca.Index)
+            {
+                e.Value = producto is not null && _marcados.Contains(producto.Id);
+                e.FormattingApplied = true;
+            }
+        }
+
+        // Solo el clic del mouse: la grilla también "hace clic" en la casilla cuando se aprieta espacio sobre ella,
+        // y el espacio ya se atiende abajo (si se atendiera dos veces, marcaría y desmarcaría).
+        private void Grilla_CellMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left && e.ColumnIndex == colMarca.Index && e.RowIndex >= 0)
+                AlternarMarca(e.RowIndex);
+        }
+
+        // La barra espaciadora marca o desmarca el producto elegido. Se toma en PreviewKeyDown porque
+        // la grilla no deja llegar el espacio a KeyDown.
+        private void Grilla_PreviewKeyDown(object? sender, PreviewKeyDownEventArgs e)
+        {
+            if (e.KeyCode == Keys.Space && e.Modifiers == Keys.None && FilaElegida is { } fila)
+                AlternarMarca(fila.Index);
+        }
+
+        private void Grilla_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0 && e.ColumnIndex != colMarca.Index)
+                Editar();
+        }
+
+        private void BtnNuevo_Click(object? sender, EventArgs e) => Nuevo();
+
+        private void BtnEditar_Click(object? sender, EventArgs e) => Editar();
+
+        private void BtnEliminar_Click(object? sender, EventArgs e) => Eliminar();
+
+        private void BtnActualizarPrecios_Click(object? sender, EventArgs e) => AbrirAjustePrecios();
+
+        private void BtnArmarPedido_Click(object? sender, EventArgs e) => AbrirPedido();
+
+        private void BtnCategorias_Click(object? sender, EventArgs e) => AbrirCatalogo(panelCategorias);
+
+        private void BtnProveedores_Click(object? sender, EventArgs e) => AbrirCatalogo(panelProveedores);
+
+        private void BtnImportar_Click(object? sender, EventArgs e) => AbrirImportacion();
+
+        private void BtnDesmarcar_Click(object? sender, EventArgs e) => Desmarcar();
 
         private Producto? Seleccionado => grilla.CurrentRow?.DataBoundItem as Producto;
 

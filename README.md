@@ -23,7 +23,7 @@ sola ventana, se maneja con el lector de códigos y unas pocas teclas, y cada ac
 
 - **Venta con lector de códigos de barras**, una sola barra para código o nombre (con sugerencias al escribir) y alta de productos nuevos sin salir de la venta.
 - **Cobro con varios medios** (efectivo, débito, crédito, transferencia/QR) y cálculo de vuelto.
-- **Reglas de negocio configurables**: recargo por paquete de cigarrillos al pagar por transferencia y monto mínimo para transferir.
+- **Reglas de negocio configurables**: recargo por paquete al pagar por transferencia (distinto para cada rubro: cigarrillos, tabacos, etc.) y monto mínimo para transferir.
 - **Productos con precio al vender** (por peso) y **unidades sueltas** que abren paquetes automáticamente.
 - **Inventario** con categorías, proveedores, alertas de stock bajo y **cambios de precios en grupo** con vista previa: por porcentaje o el mismo precio para varios productos marcados.
 - **Importación desde otro programa** (Excel .xlsx o CSV): detecta las columnas por sus títulos, muestra fila por fila qué va a pasar y guarda todo en una sola transacción, con backup previo.
@@ -56,7 +56,8 @@ Dominio      entidades, reglas y servicios (sin dependencias externas)
 Datos        repositorios SQLite, migraciones y backups
 Reportes     PDF de ventas y reportes
   ↑
-Aplicación   WinForms: una ventana con secciones y paneles laterales (sin ventanas emergentes)
+Aplicación   WinForms: una ventana con secciones y paneles laterales (sin ventanas emergentes);
+             cada sección se puede editar en el diseñador de Visual Studio
 ```
 
 Algunas decisiones de diseño:

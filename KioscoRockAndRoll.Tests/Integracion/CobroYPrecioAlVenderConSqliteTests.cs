@@ -57,15 +57,70 @@ public sealed class CobroYPrecioAlVenderConSqliteTests : IDisposable
     [Fact]
     public void Reglas_PorDefecto_CigarrillosA200YMinimo500()
     {
-        Assert.Equal(new ReglasDeCobro(_cigarrillos.Id, 200, 500), _ajustesDeCobro.Leer());
+        Assert.True(new ReglasDeCobro([new RecargoDeRubro(_cigarrillos.Id, 200)], 500).Iguales(_ajustesDeCobro.Leer()));
     }
 
     [Fact]
-    public void Reglas_SeGuardanYSeLeen_InclusoSinRubro()
+    public void Reglas_SeGuardanYSeLeen_ConVariosRubros()
     {
-        _ajustesDeCobro.Guardar(new ReglasDeCobro(null, 150, 0));
+        var reglas = new ReglasDeCobro([new RecargoDeRubro(_cigarrillos.Id, 150), new RecargoDeRubro(99, 300.5m)], 700);
 
-        Assert.Equal(new ReglasDeCobro(null, 150, 0), _ajustesDeCobro.Leer());
+        _ajustesDeCobro.Guardar(reglas);
+
+        Assert.True(reglas.Iguales(_ajustesDeCobro.Leer()));
+    }
+
+    [Fact]
+    public void Reglas_SeGuardanYSeLeen_SinRubros()
+    {
+        _ajustesDeCobro.Guardar(new ReglasDeCobro([], 0));
+
+        var leidas = _ajustesDeCobro.Leer();
+        Assert.Empty(leidas.Recargos);
+        Assert.Equal(0, leidas.MinimoTransferencia);
+    }
+
+    [Fact]
+    public void Reglas_DeLaVersionAnterior_SeSiguenRespetando()
+    {
+        // Hasta la 1.8 se guardaba un solo rubro con su monto.
+        var ajustes = new Ajustes(_base.Conexion);
+        ajustes.Guardar("Cobro.CategoriaConRecargo", "42");
+        ajustes.Guardar("Cobro.RecargoPorPaquete", "250");
+
+        var leidas = _ajustesDeCobro.Leer();
+        Assert.Equal([new RecargoDeRubro(42, 250)], leidas.Recargos);
+
+        // Al guardar con el formato nuevo, lo anterior se borra.
+        _ajustesDeCobro.Guardar(leidas);
+        Assert.Null(ajustes.Leer("Cobro.CategoriaConRecargo"));
+        Assert.Equal([new RecargoDeRubro(42, 250)], _ajustesDeCobro.Leer().Recargos);
+    }
+
+    [Fact]
+    public void Reglas_DeLaVersionAnterior_SinRubro()
+    {
+        new Ajustes(_base.Conexion).Guardar("Cobro.CategoriaConRecargo", "ninguna");
+
+        Assert.Empty(_ajustesDeCobro.Leer().Recargos);
+    }
+
+    [Fact]
+    public void PagoPorTransferencia_ConDosRubros_CadaPaqueteConSuRecargo()
+    {
+        var categorias = new CatalogoServicio<Categoria>(new SqliteCategoriaRepositorio(_base.Conexion));
+        var tabacos = new Categoria("Tabacos");
+        categorias.Guardar(tabacos);
+        var tabaco = _inventario.Crear(new DatosProducto("779009", "Tabaco 30g", 3000, 4000, 10, 0, CategoriaId: tabacos.Id));
+        var reglas = new ReglasDeCobro([new RecargoDeRubro(_cigarrillos.Id, 200), new RecargoDeRubro(tabacos.Id, 300)], 500);
+        var carrito = new Carrito();
+        carrito.Agregar(Leer(_atado), 2);
+        carrito.Agregar(Leer(tabaco), 1);
+
+        var venta = _ventas.Cobrar(carrito, Cobro.Crear(reglas.TotalACobrar(carrito, true), MedioDePago.TransferenciaQr), reglas);
+
+        Assert.Equal(14700, venta.Total);   // 2 × 5200 + 4300
+        Assert.Equal([5200m, 4300m], _ventas.Detalle(venta.Id)!.Lineas.Select(l => l.PrecioUnitario));
     }
 
     [Fact]

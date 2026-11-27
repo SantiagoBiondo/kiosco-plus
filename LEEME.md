@@ -65,11 +65,12 @@ lo hace sola al abrir y antes guarda una copia de seguridad.
 | Tecla | Dónde | Qué hace |
 |---|---|---|
 | F1 / F2 / F3 / F4 | Siempre | Venta / Inventario / Ingreso de mercadería / Caja |
-| Enter | Venta | Agrega el producto escaneado o escrito (`3*código` agrega 3 unidades) |
-| Letras en la barra | Venta | Muestra los productos que coinciden: ↑ ↓ y Enter para elegir, Esc para cerrar la lista |
+| Enter | Venta y Etiquetas | Agrega el producto escaneado o escrito (`3*código` agrega 3 unidades) |
+| Letras en la barra | Venta y Etiquetas | Muestra los productos que coinciden: ↑ ↓ y Enter para elegir, Esc para cerrar la lista |
 | F12 | Venta | Cobrar |
-| Supr / + / − | Venta | Con la barra vacía: quitar el producto elegido (el último agregado) o cambiar su cantidad |
-| ↑ ↓ | Venta | Con la barra vacía: elegir otro producto del carrito |
+| Supr / + / − | Venta y Etiquetas | Con la barra vacía: quitar el producto elegido (el último agregado) o cambiar su cantidad |
+| ↑ ↓ | Venta y Etiquetas | Con la barra vacía: elegir otro producto de la lista |
+| F12 | Etiquetas | Imprimir |
 | Insert | Inventario | Nuevo producto |
 | Espacio o clic en ✓ | Inventario | Marcar productos para cambiarles el precio juntos |
 | F6 | Inventario | Actualizar precios: a los marcados con ✓ o, si no hay, a lo que se ve en la lista (por porcentaje o el mismo precio a todos) |
@@ -90,6 +91,13 @@ lo hace sola al abrir y antes guarda una copia de seguridad.
 
 El resultado es un único `publicar\KioscoPlus.exe`. Antes de publicar una versión nueva,
 subí el número de `<Version>` en `Proyecto Kiosco Rock&Roll.csproj`.
+
+### Editar las pantallas
+
+Cada sección (`Interfaz\Vistas\Vista*.cs`) tiene su `.Designer.cs`: con doble clic en el archivo se abre
+el diseñador de Visual Studio y se pueden mover controles y cambiar textos, tamaños y fuentes.
+El panel de la derecha y lo que se abre en él los arma el programa, así que no aparecen en el diseñador;
+tampoco los colores del tema (por ejemplo, el verde de COBRAR), que se aplican al abrir el programa.
 
 ### Probar sin tocar los datos reales
 

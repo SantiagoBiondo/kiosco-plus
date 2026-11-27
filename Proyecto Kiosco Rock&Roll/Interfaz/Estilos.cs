@@ -149,15 +149,20 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz
         /// <summary>Lista desplegable de opciones fijas, mostrando cada una con un texto a elección.</summary>
         public static ComboBox Opciones<T>(IEnumerable<T> opciones, Func<T, string> texto, int ancho = 260) where T : notnull
         {
-            var combo = new ComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Width = ancho,
-                FormattingEnabled = true, // sin esto WinForms ignora el evento Format
-                DataSource = opciones.ToList()
-            };
-            combo.Format += (_, e) => e.Value = texto((T)e.ListItem!);
+            var combo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = ancho };
+            PrepararOpciones(combo, opciones, texto);
             return combo;
+        }
+
+        /// <summary>
+        /// Carga las opciones en una lista que ya existe (por ejemplo, una creada en el diseñador de Visual Studio),
+        /// mostrando cada una con un texto a elección.
+        /// </summary>
+        public static void PrepararOpciones<T>(ComboBox combo, IEnumerable<T> opciones, Func<T, string> texto) where T : notnull
+        {
+            combo.FormattingEnabled = true; // sin esto WinForms ignora el evento Format
+            combo.DataSource = opciones.ToList();
+            combo.Format += (_, e) => e.Value = texto((T)e.ListItem!);
         }
 
         /// <summary>Reemplaza las opciones de una lista creada con <see cref="Opciones"/>.</summary>

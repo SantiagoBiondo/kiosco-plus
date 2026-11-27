@@ -13,8 +13,10 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
     /// (escribe el código y aprieta Enter) y, si se escriben letras, aparecen debajo los productos que coinciden.
     /// Desde la barra vacía, Supr, + y − actúan sobre el producto elegido del carrito (el último agregado).
     /// El alta de productos nuevos y el cobro se abren en el panel de la derecha.
+    /// Los controles están en VistaVenta.Designer.cs (se editan con el diseñador de Visual Studio);
+    /// el panel de la derecha y lo que se abre en él se agregan acá porque los arma el programa.
     /// </summary>
-    public class VistaVenta : Vista
+    public partial class VistaVenta : Vista
     {
         private readonly InventarioServicio _inventario;
         private readonly VentaServicio _ventas;
@@ -30,25 +32,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
         private readonly PanelCobro panelCobro = new();
         private readonly PanelPrecioAlVender panelPrecio = new();
 
-        private const int MaximoSugerencias = 8;
-
-        private readonly TextBox txtCodigo = new() { Font = Estilos.Grande, Width = 520, PlaceholderText = "Escaneá el código o escribí el nombre" };
-
-        // Los productos que coinciden con lo que se escribe (flota sobre el carrito, debajo de la barra).
-        private readonly ListBox lstSugerencias = new()
-        {
-            Font = Estilos.Grande,
-            DrawMode = DrawMode.OwnerDrawFixed,
-            ItemHeight = 36,
-            IntegralHeight = false,
-            BorderStyle = BorderStyle.FixedSingle,
-            TabStop = false,
-            Visible = false
-        };
-        private readonly DataGridView grilla = new();
-        private readonly DataGridViewTextBoxColumn colCantidad;
-        private readonly Label lblTotal = new() { Font = Estilos.Total, AutoSize = true };
-        private readonly Label lblEstado = new() { AutoSize = true, Font = Estilos.Normal, Anchor = AnchorStyles.Left };
+        private readonly BarraDeProductos barra;
 
         public VistaVenta(InventarioServicio inventario, VentaServicio ventas, CajaServicio caja, ImpresoraDeTickets impresora,
             AjustesDeCobro ajustesDeCobro, EditorProducto editor, PanelAbrirCaja panelAbrirCaja)
@@ -61,84 +45,29 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             this.editor = editor;
             this.panelAbrirCaja = panelAbrirCaja;
 
-            // Zona de escaneo.
-            var escaneo = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(6) };
-            escaneo.Controls.Add(new Label { Text = "Código o nombre:", AutoSize = true, Font = Estilos.Grande, Margin = new Padding(3, 8, 3, 3) });
-            escaneo.Controls.Add(txtCodigo);
-            escaneo.Controls.Add(new Label
-            {
-                Text = "\"3*código\" agrega 3  ·  Supr quita el elegido  ·  + y − cambian la cantidad  ·  ↑ ↓ eligen otro",
-                AutoSize = true,
-                ForeColor = SystemColors.GrayText,
-                Margin = new Padding(12, 12, 3, 3)
-            });
-
-            // Carrito. La grilla no está enlazada a datos: se redibuja desde el Carrito cada vez que cambia.
-            Estilos.ConfigurarGrilla(grilla);
-            Estilos.Columna(grilla, "Codigo", "Código", ancho: 160);
-            Estilos.Columna(grilla, "Nombre", "Producto", llenar: true);
-            colCantidad = Estilos.Columna(grilla, "Cantidad", "Cant.", "N0", 90, soloLectura: false);
-            Estilos.Columna(grilla, "Precio", "Precio", "C2", 140);
-            Estilos.Columna(grilla, "Subtotal", "Subtotal", "C2", 160);
-            grilla.CellValidating += Grilla_CellValidating;
-            grilla.CellEndEdit += Grilla_CellEndEdit;
-            grilla.KeyDown += (_, e) =>
-            {
-                if (e.KeyCode == Keys.Delete) { QuitarSeleccionado(); e.Handled = true; }
-            };
-
-            // Barra de abajo: acciones sobre el carrito, total y cobrar.
-            var abajo = new TableLayoutPanel { Dock = DockStyle.Bottom, ColumnCount = 3, AutoSize = true, Padding = new Padding(6) };
-            abajo.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            abajo.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            abajo.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-
-            var acciones = new FlowLayoutPanel { AutoSize = true };
-            acciones.Controls.Add(Estilos.Boton("+1", (_, _) => SumarAlSeleccionado(+1), 60));
-            acciones.Controls.Add(Estilos.Boton("-1", (_, _) => SumarAlSeleccionado(-1), 60));
-            acciones.Controls.Add(Estilos.Boton("Quitar (Supr)", (_, _) => QuitarSeleccionado(), 150));
-            acciones.Controls.Add(Estilos.Boton("Cancelar venta", (_, _) => CancelarVenta(), 170));
-
-            var totalYCobro = new FlowLayoutPanel { AutoSize = true };
-            totalYCobro.Controls.Add(new Label { Text = "TOTAL:", AutoSize = true, Font = Estilos.Grande, Margin = new Padding(3, 16, 3, 3) });
-            totalYCobro.Controls.Add(lblTotal);
-            var btnCobrar = Estilos.Boton("COBRAR (F12)", (_, _) => AbrirCobro(), 200);
-            btnCobrar.Height = 60;
-            btnCobrar.Font = Estilos.Grande;
-            Estilos.Destacar(btnCobrar, Estilos.FondoBotonPrincipal);
-            totalYCobro.Controls.Add(btnCobrar);
-
-            abajo.Controls.Add(acciones, 0, 0);
-            abajo.Controls.Add(lblEstado, 1, 0);
-            abajo.Controls.Add(totalYCobro, 2, 0);
-
-            // El orden importa: lo que tiene Dock = Fill va primero.
-            var principal = new Panel { Dock = DockStyle.Fill };
-            principal.Controls.Add(grilla);
-            principal.Controls.Add(abajo);
-            principal.Controls.Add(escaneo);
-            Controls.Add(principal);
+            InitializeComponent();
             Controls.Add(panelLateral);
-            Controls.Add(lstSugerencias);
-            lstSugerencias.BringToFront();
 
-            txtCodigo.KeyDown += TxtCodigo_KeyDown;
-            txtCodigo.KeyPress += TxtCodigo_KeyPress;
-            txtCodigo.TextChanged += (_, _) => ActualizarSugerencias();
-            // Si el foco se va a otro lado (que no sea la lista misma), la lista se cierra.
-            txtCodigo.Leave += (_, _) => BeginInvoke(() =>
+            // Lo que el diseñador no puede hacer: la grilla y los colores del tema.
+            Estilos.ConfigurarGrilla(grilla);
+            Estilos.Destacar(btnCobrar, Estilos.FondoBotonPrincipal);
+
+            barra = new BarraDeProductos(txtCodigo, this, inventario);
+            barra.Elegido += (_, e) => Agregar(e.Producto, e.Cantidad);
+            barra.CodigoDesconocido += (_, e) => DarDeAlta(e);
+            barra.Aviso += (_, e) => MostrarEstado(e.Texto, e.Color);
+            // Con la barra vacía, Supr, + y − actúan sobre el producto elegido (el último agregado); ↑ ↓ eligen otro.
+            barra.AccionDeTecla = tecla =>
             {
-                if (!lstSugerencias.Focused && !txtCodigo.Focused)
-                    OcultarSugerencias();
-            });
-            lstSugerencias.DrawItem += DibujarSugerencia;
-            lstSugerencias.MouseMove += (_, e) =>
-            {
-                var indice = lstSugerencias.IndexFromPoint(e.Location);
-                if (indice >= 0 && indice != lstSugerencias.SelectedIndex)
-                    lstSugerencias.SelectedIndex = indice;
+                switch (tecla)
+                {
+                    case Keys.Delete: QuitarSeleccionado(); return true;
+                    case Keys.Add: SumarAlSeleccionado(+1); return true;
+                    case Keys.Subtract: SumarAlSeleccionado(-1); return true;
+                    case Keys.Up or Keys.Down: MoverSeleccion(tecla == Keys.Down ? 1 : -1); return true;
+                    default: return false;
+                }
             };
-            lstSugerencias.MouseClick += (_, _) => AgregarDesdeLaBarra();
             _carrito.Cambio += (_, _) => DibujarCarrito();
 
             editor.Guardado += (_, producto) => { CerrarPanel(); Agregar(producto, _cantidadPendiente); };
@@ -188,198 +117,41 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
                 // F5 era "buscar por nombre": ahora se busca en la misma barra, así que solo la deja lista para escribir.
                 case Keys.F5 when txtCodigo.Enabled: txtCodigo.Focus(); txtCodigo.SelectAll(); return true;
                 case Keys.F12: AbrirCobro(); return true;
-                case Keys.Escape when lstSugerencias.Visible: OcultarSugerencias(); return true;
+                case Keys.Escape when barra.ListaAbierta: barra.OcultarSugerencias(); return true;
                 case Keys.Escape when !grilla.IsCurrentCellInEditMode: CancelarVenta(); return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
-        protected override void Dispose(bool disposing)
+        // ---------- Lo que pasa al tocar cada cosa (conectado en el diseñador) ----------
+
+        private void Grilla_KeyDown(object? sender, KeyEventArgs e)
         {
-            if (disposing)
-            {
-                // Los controles del panel lateral pueden no estar en pantalla: se liberan a mano.
-                editor.Dispose();
-                panelCobro.Dispose();
-                panelPrecio.Dispose();
-                panelAbrirCaja.Dispose();
-            }
-            base.Dispose(disposing);
+            if (e.KeyCode == Keys.Delete) { QuitarSeleccionado(); e.Handled = true; }
         }
+
+        private void BtnSumar_Click(object? sender, EventArgs e) => SumarAlSeleccionado(+1);
+
+        private void BtnRestar_Click(object? sender, EventArgs e) => SumarAlSeleccionado(-1);
+
+        private void BtnQuitar_Click(object? sender, EventArgs e) => QuitarSeleccionado();
+
+        private void BtnCancelarVenta_Click(object? sender, EventArgs e) => CancelarVenta();
+
+        private void BtnCobrar_Click(object? sender, EventArgs e) => AbrirCobro();
 
         // ---------- Escaneo ----------
 
         private int _cantidadPendiente = 1;
 
-        private void TxtCodigo_KeyDown(object? sender, KeyEventArgs e)
+        /// <summary>Código desconocido: se da de alta ahí mismo y, al guardar, se agrega al carrito.</summary>
+        private void DarDeAlta(CodigoEscaneado escaneado)
         {
-            _descartarCaracter = false;
-            var barraVacia = txtCodigo.Text == "";
-            var manejada = true;
-            switch (e.KeyCode)
-            {
-                case Keys.Enter:
-                    AgregarDesdeLaBarra();
-                    break;
-                // ↑ ↓ recorren la lista de coincidencias si está abierta; si no, eligen otro producto del carrito.
-                case Keys.Down or Keys.Up when lstSugerencias.Visible:
-                    lstSugerencias.SelectedIndex = Math.Clamp(lstSugerencias.SelectedIndex + (e.KeyCode == Keys.Down ? 1 : -1),
-                        0, lstSugerencias.Items.Count - 1);
-                    break;
-                case Keys.Down or Keys.Up:
-                    MoverSeleccion(e.KeyCode == Keys.Down ? 1 : -1);
-                    break;
-                // Con la barra vacía, Supr, + y − actúan sobre el producto elegido (el último agregado).
-                case Keys.Delete when barraVacia:
-                    QuitarSeleccionado();
-                    break;
-                case Keys.Add or Keys.Oemplus when barraVacia:
-                    SumarAlSeleccionado(+1);
-                    break;
-                case Keys.Subtract or Keys.OemMinus when barraVacia:
-                    SumarAlSeleccionado(-1);
-                    break;
-                default:
-                    manejada = false;
-                    break;
-            }
-            if (manejada)
-            {
-                e.Handled = true;
-                e.SuppressKeyPress = true; // evita el "beep" de Windows
-                _descartarCaracter = true; // y que el "+" o el "−" se escriban en la barra (ver KeyPress)
-            }
-        }
-
-        // SuppressKeyPress no siempre alcanza a descartar el carácter de la tecla (llega en un mensaje aparte):
-        // si la tecla ya se usó como acción, su carácter se descarta acá.
-        private bool _descartarCaracter;
-
-        private void TxtCodigo_KeyPress(object? sender, KeyPressEventArgs e)
-        {
-            if (!_descartarCaracter)
-                return;
-            _descartarCaracter = false;
-            e.Handled = true;
-        }
-
-        /// <summary>
-        /// Enter en la barra: primero se busca el código exacto (lo que manda el lector); si no hay, el producto
-        /// elegido en la lista de coincidencias; si se escribió un nombre, se busca por nombre. Un código
-        /// que no existe se da de alta ahí mismo.
-        /// </summary>
-        private void AgregarDesdeLaBarra()
-        {
-            var texto = txtCodigo.Text;
-            var sugerido = lstSugerencias.Visible ? lstSugerencias.SelectedItem as Producto : null;
-
-            if (!CodigoEscaneado.TryInterpretar(texto, out var escaneado))
-            {
-                if (texto.Trim() != "")
-                    MostrarEstado("No se entendió. Usá \"cantidad*código\", por ejemplo 3*779123.", Estilos.Error);
-                return;
-            }
-
-            OcultarSugerencias();
-            txtCodigo.Clear();
-
-            if (_inventario.ObtenerPorCodigo(escaneado.Codigo) is { } producto)
-            {
-                Agregar(producto, escaneado.Cantidad);
-                return;
-            }
-            if (sugerido != null)
-            {
-                Agregar(sugerido, escaneado.Cantidad);
-                return;
-            }
-            if (escaneado.Codigo.Any(char.IsLetter))
-            {
-                var encontrados = _inventario.Buscar(escaneado.Codigo);
-                if (encontrados.Count == 1)
-                {
-                    Agregar(encontrados[0], escaneado.Cantidad);
-                    return;
-                }
-                // Ninguno (o varios sin elegir): se deja lo escrito para corregirlo.
-                txtCodigo.Text = texto;
-                txtCodigo.SelectionStart = texto.Length;
-                MostrarEstado(encontrados.Count == 0
-                    ? $"No hay ningún producto que diga \"{escaneado.Codigo}\"."
-                    : "Elegí uno de la lista con ↑ ↓ y apretá Enter.", Estilos.Advertencia);
-                return;
-            }
-
-            // Código desconocido: se da de alta ahí mismo y, al guardar, se agrega al carrito.
             _cantidadPendiente = escaneado.Cantidad;
             editor.NuevoProducto(escaneado.Codigo);
             AbrirPanel(editor);
             editor.Enfocar();
             MostrarEstado($"El código {escaneado.Codigo} no está registrado: completá los datos a la derecha.", Estilos.Advertencia);
-        }
-
-        // ---------- Coincidencias por nombre ----------
-
-        /// <summary>
-        /// Si se escribieron letras, muestra debajo de la barra los productos que coinciden. Con solo números
-        /// (lo que manda el lector de códigos) no aparece nada.
-        /// </summary>
-        private void ActualizarSugerencias()
-        {
-            var texto = txtCodigo.Text;
-            var asterisco = texto.IndexOf('*');
-            if (asterisco >= 0)
-                texto = texto[(asterisco + 1)..]; // "3*coca" busca "coca"
-            texto = texto.Trim();
-
-            if (texto.Length < 2 || !texto.Any(char.IsLetter) || !txtCodigo.Enabled)
-            {
-                OcultarSugerencias();
-                return;
-            }
-
-            var encontrados = _inventario.Buscar(texto).Take(MaximoSugerencias).ToList();
-            if (encontrados.Count == 0)
-            {
-                OcultarSugerencias();
-                return;
-            }
-
-            lstSugerencias.BeginUpdate();
-            lstSugerencias.Items.Clear();
-            foreach (var producto in encontrados)
-                lstSugerencias.Items.Add(producto);
-            lstSugerencias.EndUpdate();
-            lstSugerencias.SelectedIndex = 0;
-
-            // Justo debajo de la barra, más ancha que ella para que entren los nombres largos.
-            var origen = PointToClient(txtCodigo.Parent!.PointToScreen(new Point(txtCodigo.Left, txtCodigo.Bottom)));
-            lstSugerencias.SetBounds(origen.X, origen.Y + 2, Math.Max(txtCodigo.Width, 760),
-                encontrados.Count * lstSugerencias.ItemHeight + 4);
-            lstSugerencias.Visible = true;
-            lstSugerencias.BringToFront();
-        }
-
-        private void OcultarSugerencias()
-        {
-            lstSugerencias.Visible = false;
-            lstSugerencias.Items.Clear();
-        }
-
-        /// <summary>Cada coincidencia: el nombre a la izquierda y el precio a la derecha.</summary>
-        private void DibujarSugerencia(object? sender, DrawItemEventArgs e)
-        {
-            e.DrawBackground();
-            if (e.Index < 0 || lstSugerencias.Items[e.Index] is not Producto producto)
-                return;
-            var color = (e.State & DrawItemState.Selected) != 0 ? SystemColors.HighlightText : lstSugerencias.ForeColor;
-            const int anchoPrecio = 170;
-            var zona = Rectangle.Inflate(e.Bounds, -8, 0);
-            var zonaNombre = zona with { Width = zona.Width - anchoPrecio };
-            TextRenderer.DrawText(e.Graphics, producto.Nombre, e.Font, zonaNombre, color,
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-            TextRenderer.DrawText(e.Graphics, producto.PrecioVenta.ToString("C2"), e.Font, zona, color,
-                TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
         }
 
         /// <summary>
@@ -524,7 +296,7 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
 
         private void AbrirPanel(Control contenido)
         {
-            OcultarSugerencias();
+            barra.OcultarSugerencias();
             panelLateral.Mostrar(contenido);
             // Mientras hay un panel abierto, no se puede escanear para no mezclar acciones.
             txtCodigo.Enabled = false;

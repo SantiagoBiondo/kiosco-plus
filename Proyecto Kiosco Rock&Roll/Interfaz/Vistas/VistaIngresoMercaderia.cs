@@ -6,53 +6,24 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
     /// <summary>
     /// Para cuando llega un pedido: se escanea cada producto y se suma al stock.
     /// Si el código no existe, se da de alta en el panel de la derecha con el código y la cantidad ya cargados.
+    /// Los controles están en VistaIngresoMercaderia.Designer.cs (se editan con el diseñador de Visual Studio);
+    /// el panel de la derecha y el editor se agregan acá porque los arma el programa.
     /// </summary>
-    public class VistaIngresoMercaderia : Vista
+    public partial class VistaIngresoMercaderia : Vista
     {
         private readonly InventarioServicio _inventario;
 
         private readonly PanelLateral panelLateral = new();
         private readonly EditorProducto editor;
 
-        private readonly TextBox txtCodigo = new() { Width = 380, Font = Estilos.Grande, PlaceholderText = "Escaneá el producto" };
-        private readonly NumericUpDown numCantidad = Estilos.CampoNumero(0, 100_000);
-        private readonly ListBox lstIngresos = new() { Dock = DockStyle.Fill, Font = Estilos.Normal, IntegralHeight = false };
-        private readonly Label lblEstado = new() { Dock = DockStyle.Bottom, AutoSize = false, Height = 36, Padding = new Padding(6), Font = Estilos.Normal };
-
         public VistaIngresoMercaderia(InventarioServicio inventario, EditorProducto editor)
         {
             _inventario = inventario;
             this.editor = editor;
 
-            numCantidad.Minimum = 1;
-            numCantidad.Value = 1;
-            numCantidad.Width = 110;
-            numCantidad.Font = Estilos.Grande;
-
-            var arriba = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(6) };
-            arriba.Controls.Add(new Label { Text = "Cantidad:", AutoSize = true, Font = Estilos.Grande, Margin = new Padding(3, 8, 3, 3) });
-            arriba.Controls.Add(numCantidad);
-            arriba.Controls.Add(new Label { Text = "Código:", AutoSize = true, Font = Estilos.Grande, Margin = new Padding(12, 8, 3, 3) });
-            arriba.Controls.Add(txtCodigo);
-
-            var ayuda = new Label
-            {
-                Dock = DockStyle.Top,
-                Height = 28,
-                Padding = new Padding(8, 4, 0, 0),
-                ForeColor = SystemColors.GrayText,
-                Text = "Primero poné la cantidad (si es más de 1) y después escaneá. Abajo queda el registro de lo ingresado."
-            };
-
-            var principal = new Panel { Dock = DockStyle.Fill };
-            principal.Controls.Add(lstIngresos);
-            principal.Controls.Add(lblEstado);
-            principal.Controls.Add(ayuda);
-            principal.Controls.Add(arriba);
-            Controls.Add(principal);
+            InitializeComponent();
             Controls.Add(panelLateral);
 
-            txtCodigo.KeyDown += TxtCodigo_KeyDown;
             editor.Guardado += (_, nuevo) =>
             {
                 CerrarEditor();
@@ -74,13 +45,6 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
                 editor.Enfocar();
             else
                 txtCodigo.Focus();
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-                editor.Dispose();
-            base.Dispose(disposing);
         }
 
         private void TxtCodigo_KeyDown(object? sender, KeyEventArgs e)

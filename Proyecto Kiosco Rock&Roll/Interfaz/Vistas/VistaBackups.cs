@@ -6,61 +6,37 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
     /// <summary>
     /// Copias de seguridad: dónde se guardan, hacer una ahora y restaurar una anterior.
     /// El backup automático se hace al cerrar el programa (ver <see cref="FormPrincipal"/>).
+    /// Los controles están en VistaBackups.Designer.cs (se editan con el diseñador de Visual Studio).
     /// </summary>
-    public class VistaBackups : Vista
+    public partial class VistaBackups : Vista
     {
         private readonly GestorDeBackups _backups;
-
-        private readonly Label lblCarpetaPrincipal = new() { AutoSize = true, Margin = new Padding(3, 10, 3, 3) };
-        private readonly Label lblCarpetaExtra = new() { AutoSize = true, Margin = new Padding(3, 10, 3, 3) };
-        private readonly Button btnQuitarExtra;
-        private readonly DataGridView grilla = new();
-        private readonly Label lblEstado = new() { AutoSize = true, Margin = new Padding(12, 14, 3, 3), MaximumSize = new Size(900, 0) };
 
         public VistaBackups(GestorDeBackups backups)
         {
             _backups = backups;
+            InitializeComponent();
 
-            var explicacion = new Label
-            {
-                Dock = DockStyle.Top,
-                AutoSize = true,
-                Padding = new Padding(8),
-                Text = "Cada vez que cerrás el programa se guarda una copia de seguridad del día. " +
-                       $"Se conservan las últimas {GestorDeBackups.CantidadAConservar}.\n" +
-                       "Para no depender de esta computadora, elegí una carpeta extra: un pendrive o una carpeta de Google Drive / OneDrive."
-            };
-
-            var carpetas = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3, Padding = new Padding(6) };
-            carpetas.Controls.Add(Estilos.Etiqueta("Carpeta principal:"));
-            carpetas.Controls.Add(lblCarpetaPrincipal);
-            carpetas.Controls.Add(Estilos.Boton("Abrir carpeta", (_, _) => AbrirEnExplorador(_backups.CarpetaPrincipal), 150));
-            carpetas.Controls.Add(Estilos.Etiqueta("Carpeta extra:"));
-            carpetas.Controls.Add(lblCarpetaExtra);
-            var botonesExtra = new FlowLayoutPanel { AutoSize = true };
-            botonesExtra.Controls.Add(Estilos.Boton("Elegir carpeta…", (_, _) => ElegirCarpetaExtra(), 150));
-            btnQuitarExtra = Estilos.Boton("Quitar", (_, _) => QuitarCarpetaExtra(), 100);
-            botonesExtra.Controls.Add(btnQuitarExtra);
-            carpetas.Controls.Add(botonesExtra);
-
+            // Lo que el diseñador no puede hacer: textos que dependen de datos, colores del tema y la grilla.
+            lblExplicacion.Text =
+                "Cada vez que cerrás el programa se guarda una copia de seguridad del día. " +
+                $"Se conservan las últimas {GestorDeBackups.CantidadAConservar}.\n" +
+                "Para no depender de esta computadora, elegí una carpeta extra: un pendrive o una carpeta de Google Drive / OneDrive.";
             Estilos.ConfigurarGrilla(grilla);
-            grilla.ReadOnly = true;
-            Estilos.Columna(grilla, nameof(InfoBackup.Nombre), "Backup", llenar: true);
-            Estilos.Columna(grilla, nameof(InfoBackup.Fecha), "Última actualización", "dd/MM/yyyy HH:mm", 200);
-            Estilos.Columna(grilla, nameof(InfoBackup.Tamanio), "Tamaño", ancho: 110);
-
-            var abajo = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(6) };
-            var btnAhora = Estilos.Boton("Hacer backup ahora", (_, _) => HacerBackup(), 200);
-            Estilos.Destacar(btnAhora, Estilos.FondoBotonPrincipal);
-            abajo.Controls.Add(btnAhora);
-            abajo.Controls.Add(Estilos.Boton("Restaurar el elegido…", (_, _) => Restaurar(), 210));
-            abajo.Controls.Add(lblEstado);
-
-            Controls.Add(grilla);
-            Controls.Add(abajo);
-            Controls.Add(carpetas);
-            Controls.Add(explicacion);
+            Estilos.Destacar(btnHacerBackup, Estilos.FondoBotonPrincipal);
         }
+
+        // ---------- Lo que pasa al tocar cada cosa (conectado en el diseñador) ----------
+
+        private void BtnAbrirCarpeta_Click(object? sender, EventArgs e) => AbrirEnExplorador(_backups.CarpetaPrincipal);
+
+        private void BtnElegirCarpeta_Click(object? sender, EventArgs e) => ElegirCarpetaExtra();
+
+        private void BtnQuitarExtra_Click(object? sender, EventArgs e) => QuitarCarpetaExtra();
+
+        private void BtnHacerBackup_Click(object? sender, EventArgs e) => HacerBackup();
+
+        private void BtnRestaurar_Click(object? sender, EventArgs e) => Restaurar();
 
         public override string Titulo => "Backups";
 

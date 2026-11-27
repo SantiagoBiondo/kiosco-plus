@@ -54,7 +54,6 @@ namespace Proyecto_Kiosco_Rock_Roll
 
             // Controles que usan varias vistas: cada vista recibe su propia instancia.
             servicios.AddTransient<EditorProducto>();
-            servicios.AddTransient<BuscadorProducto>();
             servicios.AddTransient<PanelAjustePrecios>();
             servicios.AddTransient<PanelCategorias>();
             servicios.AddTransient<PanelProveedores>();

@@ -189,9 +189,14 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Controles
         /// <summary>Explica el recargo por transferencia: si ya está incluido, o cuánto sería.</summary>
         private void MostrarRecargo()
         {
-            var paquetes = _reglas.PaquetesConRecargo(_carrito);
             var recargo = _reglas.RecargoPorTransferencia(_carrito);
-            var detalle = $"{(paquetes == 1 ? "1 paquete" : $"{paquetes} paquetes")} × {_reglas.RecargoPorPaquete:C0} = {recargo:C0}";
+            // Agrupado por monto: "2 paquetes × $200 + 1 paquete × $300 = $700".
+            var partes = _carrito.Items
+                .Where(i => _reglas.LlevaRecargo(i.Producto))
+                .GroupBy(i => _reglas.RecargoDe(i.Producto))
+                .Select(g => (Paquetes: g.Sum(i => i.Cantidad), Monto: g.Key))
+                .Select(p => $"{(p.Paquetes == 1 ? "1 paquete" : $"{p.Paquetes} paquetes")} × {p.Monto:C0}");
+            var detalle = $"{string.Join(" + ", partes)} = {recargo:C0}";
             var minimo = _reglas.MinimoTransferencia > 0 ? $"Por transferencia, desde {_reglas.MinimoTransferencia:C0}." : "";
 
             if (recargo > 0 && ConTransferencia)

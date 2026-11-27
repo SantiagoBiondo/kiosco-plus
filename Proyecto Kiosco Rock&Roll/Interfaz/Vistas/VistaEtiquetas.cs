@@ -9,110 +9,78 @@ using Proyecto_Kiosco_Rock_Roll.Interfaz.Impresion;
 namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
 {
     /// <summary>
-    /// Etiquetas de precio para las góndolas: se escanean los productos y se imprimen en hojas A4,
-    /// una al lado de la otra, con el nombre y el precio. A la derecha se ve cómo va a quedar la hoja.
+    /// Etiquetas de precio para las góndolas: se escanean (o se escriben por nombre, en la misma barra que la Venta)
+    /// los productos y se imprimen en hojas A4, una al lado de la otra, con el nombre y el precio.
+    /// A la derecha se ve cómo va a quedar la hoja.
+    /// Los controles están en VistaEtiquetas.Designer.cs (se editan con el diseñador de Visual Studio).
     /// </summary>
-    public class VistaEtiquetas : Vista
+    public partial class VistaEtiquetas : Vista
     {
         private readonly InventarioServicio _inventario;
         private readonly AjustesDeEtiquetas _ajustes;
         private readonly ListaDeEtiquetas _lista = new();
         private bool _cargando;
 
-        private readonly PanelLateral panelLateral = new();
-        private readonly BuscadorProducto buscador;
+        private readonly BarraDeProductos barra;
 
-        private readonly TextBox txtCodigo = new() { Width = 380, Font = Estilos.Grande, PlaceholderText = "Escaneá el producto" };
-        private readonly DataGridView grilla = new();
-        private readonly Label lblEstado = new() { AutoSize = true, Margin = new Padding(12, 14, 3, 3), MaximumSize = new Size(600, 0) };
-        private readonly Label lblTotal = new() { AutoSize = true, Font = Estilos.Grande, Margin = new Padding(3, 12, 12, 3) };
-        private readonly ComboBox cmbImpresora = Estilos.Opciones<string>([], nombre => nombre, 300);
-
-        private readonly PrintPreviewControl vistaPrevia = new() { Dock = DockStyle.Fill, AutoZoom = true };
-        private readonly Label lblHoja = new() { AutoSize = true, Margin = new Padding(8, 12, 8, 3) };
-        private readonly Button btnHojaAnterior;
-        private readonly Button btnHojaSiguiente;
-
-        public VistaEtiquetas(InventarioServicio inventario, AjustesDeEtiquetas ajustes, BuscadorProducto buscador)
+        public VistaEtiquetas(InventarioServicio inventario, AjustesDeEtiquetas ajustes)
         {
             _inventario = inventario;
             _ajustes = ajustes;
-            this.buscador = buscador;
 
-            // Zona de escaneo.
-            var escaneo = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(6) };
-            escaneo.Controls.Add(new Label { Text = "Código:", AutoSize = true, Font = Estilos.Grande, Margin = new Padding(3, 8, 3, 3) });
-            escaneo.Controls.Add(txtCodigo);
-            escaneo.Controls.Add(Estilos.Boton("Buscar por nombre (F5)", (_, _) => AbrirBuscador(), 210));
-            escaneo.Controls.Add(new Label
-            {
-                Text = "Tip: \"5*código\" agrega 5 etiquetas",
-                AutoSize = true,
-                ForeColor = SystemColors.GrayText,
-                Margin = new Padding(12, 12, 3, 3)
-            });
+            InitializeComponent();
 
-            // Lista de productos. Se redibuja desde la ListaDeEtiquetas cada vez que cambia.
+            // Lo que el diseñador no puede hacer: la grilla, los colores del tema y la lista de impresoras.
             Estilos.ConfigurarGrilla(grilla);
-            grilla.ReadOnly = true;
-            Estilos.Columna(grilla, "Nombre", "Producto", llenar: true);
-            Estilos.Columna(grilla, "Precio", "Precio", "C2", 130);
-            Estilos.Columna(grilla, "Cantidad", "Etiquetas", "N0", 100);
-            grilla.KeyDown += (_, e) =>
-            {
-                if (e.KeyCode == Keys.Delete) { QuitarSeleccionado(); e.Handled = true; }
-            };
-
-            // Barra de abajo: acciones sobre la lista, impresora e imprimir.
-            var acciones = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(6) };
-            acciones.Controls.Add(Estilos.Boton("+1", (_, _) => SumarAlSeleccionado(+1), 60));
-            acciones.Controls.Add(Estilos.Boton("-1", (_, _) => SumarAlSeleccionado(-1), 60));
-            acciones.Controls.Add(Estilos.Boton("Quitar (Supr)", (_, _) => QuitarSeleccionado(), 150));
-            acciones.Controls.Add(Estilos.Boton("Vaciar lista", (_, _) => Vaciar(), 150));
-            acciones.Controls.Add(lblEstado);
-
-            var imprimir = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(6) };
-            imprimir.Controls.Add(lblTotal);
-            imprimir.Controls.Add(new Label { Text = "Impresora:", AutoSize = true, Margin = new Padding(12, 14, 3, 3) });
-            cmbImpresora.Margin = new Padding(3, 10, 3, 3);
-            imprimir.Controls.Add(cmbImpresora);
-            var btnImprimir = Estilos.Boton("IMPRIMIR (F12)", (_, _) => Imprimir(), 200);
-            btnImprimir.Height = 60;
-            btnImprimir.Font = Estilos.Grande;
             Estilos.Destacar(btnImprimir, Estilos.FondoBotonPrincipal);
-            imprimir.Controls.Add(btnImprimir);
+            _cargando = true;
+            Estilos.PrepararOpciones<string>(cmbImpresora, [], nombre => nombre);
+            _cargando = false;
 
-            // Vista previa de la hoja.
-            var previa = new Panel { Dock = DockStyle.Right, Width = 560, Padding = new Padding(8) };
-            var navegacion = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true };
-            navegacion.Controls.Add(Estilos.Etiqueta("Así sale la hoja", Estilos.Titulo));
-            btnHojaAnterior = Estilos.Boton("◀", (_, _) => CambiarHoja(-1), 50);
-            btnHojaSiguiente = Estilos.Boton("▶", (_, _) => CambiarHoja(+1), 50);
-            navegacion.Controls.Add(btnHojaAnterior);
-            navegacion.Controls.Add(lblHoja);
-            navegacion.Controls.Add(btnHojaSiguiente);
-            previa.Controls.Add(vistaPrevia);
-            previa.Controls.Add(navegacion);
-
-            // El orden importa: lo que tiene Dock = Fill va primero.
-            var principal = new Panel { Dock = DockStyle.Fill };
-            principal.Controls.Add(grilla);
-            principal.Controls.Add(acciones);
-            principal.Controls.Add(imprimir);
-            principal.Controls.Add(escaneo);
-            Controls.Add(principal);
-            Controls.Add(previa);
-            Controls.Add(panelLateral);
-
-            txtCodigo.KeyDown += TxtCodigo_KeyDown;
+            barra = new BarraDeProductos(txtCodigo, this, inventario);
+            barra.Elegido += (_, e) => Agregar(e.Producto, e.Cantidad);
+            barra.CodigoDesconocido += (_, e) =>
+                MostrarEstado($"El código {e.Codigo} no está registrado. Cargalo primero en Inventario.", Estilos.Error);
+            barra.Aviso += (_, e) => MostrarEstado(e.Texto, e.Color);
+            // Con la barra vacía, Supr, + y − actúan sobre el producto elegido (el último agregado); ↑ ↓ eligen otro.
+            barra.AccionDeTecla = tecla =>
+            {
+                switch (tecla)
+                {
+                    case Keys.Delete: QuitarSeleccionado(); return true;
+                    case Keys.Add: SumarAlSeleccionado(+1); return true;
+                    case Keys.Subtract: SumarAlSeleccionado(-1); return true;
+                    case Keys.Up or Keys.Down: MoverSeleccion(tecla == Keys.Down ? 1 : -1); return true;
+                    default: return false;
+                }
+            };
             _lista.Cambio += (_, _) => Dibujar();
-            cmbImpresora.SelectedIndexChanged += (_, _) => GuardarImpresora();
-
-            buscador.Elegido += (_, producto) => { CerrarPanel(); Agregar(producto, 1); };
-            buscador.Cancelado += (_, _) => CerrarPanel();
 
             Dibujar();
         }
+
+        // ---------- Lo que pasa al tocar cada cosa (conectado en el diseñador) ----------
+
+        private void Grilla_KeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Delete) { QuitarSeleccionado(); e.Handled = true; }
+        }
+
+        private void BtnSumar_Click(object? sender, EventArgs e) => SumarAlSeleccionado(+1);
+
+        private void BtnRestar_Click(object? sender, EventArgs e) => SumarAlSeleccionado(-1);
+
+        private void BtnQuitar_Click(object? sender, EventArgs e) => QuitarSeleccionado();
+
+        private void BtnVaciar_Click(object? sender, EventArgs e) => Vaciar();
+
+        private void BtnImprimir_Click(object? sender, EventArgs e) => Imprimir();
+
+        private void BtnHojaAnterior_Click(object? sender, EventArgs e) => CambiarHoja(-1);
+
+        private void BtnHojaSiguiente_Click(object? sender, EventArgs e) => CambiarHoja(+1);
+
+        private void CmbImpresora_SelectedIndexChanged(object? sender, EventArgs e) => GuardarImpresora();
 
         public override string Titulo => "Etiquetas";
 
@@ -122,57 +90,22 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             // Los precios pudieron cambiar en otra sección (por ejemplo, un aumento): se toman los nuevos.
             if (!_lista.EstaVacia)
                 _lista.Refrescar(_inventario.ObtenerPorId);
-            if (panelLateral.Abierto)
-                buscador.Activar();
-            else
-                txtCodigo.Focus();
+            txtCodigo.Focus();
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            // Las teclas que maneja el buscador le llegan primero a él.
             switch (keyData)
             {
-                case Keys.F5: AbrirBuscador(); return true;
+                // F5 era "buscar por nombre": ahora se busca en la misma barra, así que solo la deja lista para escribir.
+                case Keys.F5: txtCodigo.Focus(); txtCodigo.SelectAll(); return true;
                 case Keys.F12: Imprimir(); return true;
+                case Keys.Escape when barra.ListaAbierta: barra.OcultarSugerencias(); return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                // El buscador puede no estar en pantalla: se libera a mano.
-                buscador.Dispose();
-                vistaPrevia.Document?.Dispose();
-            }
-            base.Dispose(disposing);
-        }
-
         // ---------- Escaneo ----------
-
-        private void TxtCodigo_KeyDown(object? sender, KeyEventArgs e)
-        {
-            if (e.KeyCode != Keys.Enter)
-                return;
-            e.SuppressKeyPress = true; // evita el "beep" de Windows
-
-            var texto = txtCodigo.Text;
-            txtCodigo.Clear();
-
-            if (!CodigoEscaneado.TryInterpretar(texto, out var escaneado))
-            {
-                if (texto.Trim() != "")
-                    MostrarEstado("No se entendió el código. Usá \"cantidad*código\", por ejemplo 5*779123.", Estilos.Error);
-                return;
-            }
-
-            if (_inventario.ObtenerPorCodigo(escaneado.Codigo) is { } producto)
-                Agregar(producto, escaneado.Cantidad);
-            else
-                MostrarEstado($"El código {escaneado.Codigo} no está registrado. Cargalo primero en Inventario.", Estilos.Error);
-        }
 
         private void Agregar(Producto producto, int cantidad)
         {
@@ -196,8 +129,21 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
 
         private void QuitarSeleccionado()
         {
-            if (SeleccionadoId is { } id)
+            if (SeleccionadoId is { } id && _lista.Buscar(id) is { } pedida)
+            {
                 _lista.Quitar(id);
+                MostrarEstado($"Se quitó \"{pedida.Nombre}\".", SystemColors.GrayText);
+            }
+            txtCodigo.Focus();
+        }
+
+        /// <summary>Elige el producto de arriba o de abajo en la lista, sin salir de la barra.</summary>
+        private void MoverSeleccion(int diferencia)
+        {
+            if (grilla.Rows.Count == 0)
+                return;
+            var actual = grilla.CurrentRow?.Index ?? grilla.Rows.Count - 1;
+            grilla.CurrentCell = grilla.Rows[Math.Clamp(actual + diferencia, 0, grilla.Rows.Count - 1)].Cells[0];
         }
 
         private void Vaciar()
@@ -209,16 +155,18 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             txtCodigo.Focus();
         }
 
-        private void Seleccionar(long productoId)
+        /// <returns>False si el producto ya no está en la lista.</returns>
+        private bool Seleccionar(long productoId)
         {
             foreach (DataGridViewRow fila in grilla.Rows)
             {
                 if (fila.Tag as long? == productoId)
                 {
                     grilla.CurrentCell = fila.Cells[0];
-                    return;
+                    return true;
                 }
             }
+            return false;
         }
 
         private void Dibujar()
@@ -230,8 +178,12 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
                 var indice = grilla.Rows.Add(pedida.Nombre, pedida.Precio, pedida.Cantidad);
                 grilla.Rows[indice].Tag = pedida.Producto.Id;
             }
-            if (seleccionado is { } id)
-                Seleccionar(id);
+            // Queda elegido el mismo producto; si se quitó, el último de la lista (así se puede seguir con Supr).
+            if (seleccionado is not { } id || !Seleccionar(id))
+            {
+                if (grilla.Rows.Count > 0)
+                    grilla.CurrentCell = grilla.Rows[^1].Cells[0];
+            }
 
             var hojas = _lista.Hojas(ImpresoraDeEtiquetas.PorHoja);
             lblTotal.Text = _lista.EstaVacia
@@ -335,20 +287,6 @@ namespace Proyecto_Kiosco_Rock_Roll.Interfaz.Vistas
             {
                 Cursor = Cursors.Default;
             }
-        }
-
-        // ---------- Panel lateral ----------
-
-        private void AbrirBuscador()
-        {
-            panelLateral.Mostrar(buscador);
-            buscador.Activar();
-        }
-
-        private void CerrarPanel()
-        {
-            panelLateral.Ocultar();
-            txtCodigo.Focus();
         }
 
         private void MostrarEstado(string texto, Color color)
